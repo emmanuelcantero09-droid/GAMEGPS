@@ -2,7 +2,7 @@
 
 Aplicación de navegación GPS para Android con una interfaz futurista inspirada en videojuegos modernos, construida con Flutter.
 
-> Estado actual: **entorno de desarrollo listo y verificado**. El proyecto Flutter se creará en el siguiente paso.
+> Estado actual: **app Flutter en desarrollo**. Ya funcionan el mapa interactivo oscuro (1) y la ubicación del dispositivo con permiso (2).
 
 ## Stack previsto
 
@@ -16,8 +16,8 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 
 ## Funciones previstas
 
-1. Mapa interactivo.
-2. Ubicación del dispositivo con permiso del usuario.
+1. ✅ Mapa interactivo.
+2. ✅ Ubicación del dispositivo con permiso del usuario.
 3. Acercar / alejar.
 4. Marcadores personalizados.
 5. Ubicaciones favoritas.

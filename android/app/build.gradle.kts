@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "com.gamegps.game_gps"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler 13 requiere compileSdk 37 o superior.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
