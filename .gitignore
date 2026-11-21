@@ -30,6 +30,10 @@ ios/Flutter/Generated.xcconfig
 ios/Flutter/flutter_export_environment.sh
 macos/Flutter/GeneratedPluginRegistrant.swift
 
+# Python
+__pycache__/
+*.pyc
+
 # Sistema
 .DS_Store
 Thumbs.db

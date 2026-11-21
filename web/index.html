@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>GeoQuest - GPS Gamificado</title>
+
+    <!-- Iconos -->
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <!-- Diseño propio: paleta Hollow Knight, sin fuentes ni librerías de Google -->
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/usuario.css">
+    <link rel="stylesheet" href="css/admin.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+
+<body>
+
+    <!-- ================================== -->
+    <!-- 1. AUTENTICACIÓN DE USUARIOS       -->
+    <!-- ================================== -->
+    <section id="auth-section">
+        <div class="auth-container">
+            <h1>GeoQuest</h1>
+            <p>Explora el mundo y gana recompensas.</p>
+
+            <!-- Inicio de sesión -->
+            <form id="login-form">
+                <h2>Iniciar sesión</h2>
+
+                <label for="login-user">Usuario o correo</label>
+                <input type="text" id="login-user"
+                    placeholder="Ingresa tu usuario" required>
+
+                <label for="login-password">Contraseña</label>
+                <input type="password" id="login-password"
+                    placeholder="Ingresa tu contraseña" required>
+
+                <button type="submit">Iniciar sesión</button>
+
+                <p>
+                    ¿No tienes cuenta?
+                    <button type="button" id="show-register">
+                        Registrarse
+                    </button>
+                </p>
+            </form>
+
+            <!-- Registro -->
+            <form id="register-form" hidden>
+                <h2>Crear cuenta</h2>
+
+                <label for="register-user">Nombre de usuario</label>
+                <input type="text" id="register-user"
+                    placeholder="Tu nombre" required>
+
+                <label for="register-email">Correo electrónico</label>
+                <input type="email" id="register-email"
+                    placeholder="Tu correo" required>
+
+                <label for="register-password">Contraseña</label>
+                <input type="password" id="register-password"
+                    placeholder="Crea una contraseña" required>
+
+                <button type="submit">Crear cuenta</button>
+
+                <p>
+                    ¿Ya tienes cuenta?
+                    <button type="button" id="show-login">
+                        Iniciar sesión
+                    </button>
+                </p>
+            </form>
+
+            <!-- Modo demostración -->
+            <button type="button" id="guest-mode">
+                Entrar como invitado / Modo Demo
+            </button>
+        </div>
+    </section>
+
+    <!-- ================================== -->
+    <!-- 2. APLICACIÓN PRINCIPAL            -->
+    <!-- ================================== -->
+    <div id="app-container" hidden>
+
+        <!-- HEADER SUPERIOR -->
+        <header id="main-header">
+            <div class="app-logo">
+                <h1>GeoQuest</h1>
+            </div>
+
+            <!-- Información del usuario -->
+            <div class="user-profile">
+                <img src="img/avatar.svg"
+                    alt="Avatar del usuario"
+                    id="user-avatar">
+
+                <div class="user-info">
+                    <span id="username">Explorador</span>
+                    <span id="user-level">Nivel 1 - Explorador</span>
+                </div>
+
+                <div class="user-points">
+                    <i class="fa-solid fa-star"></i>
+                    <span id="user-points">0 puntos</span>
+                </div>
+
+                <button type="button" id="logout-button">
+                    Cerrar sesión
+                </button>
+            </div>
+        </header>
+
+        <!-- ================================== -->
+        <!-- 3. CONTENIDO PRINCIPAL             -->
+        <!-- ================================== -->
+        <main id="main-content">
+
+            <!-- ÁREA DEL MAPA -->
+            <section id="map-section">
+                <div class="map-controls">
+
+                    <!-- Buscador -->
+                    <form id="destination-search">
+                        <input type="search"
+                            id="destination-input"
+                            placeholder="Buscar destino...">
+
+                        <button type="submit">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            Buscar
+                        </button>
+                    </form>
+
+                    <!-- Controles del GPS -->
+                    <div class="gps-controls">
+                        <button type="button" id="center-location">
+                            <i class="fa-solid fa-location-crosshairs"></i>
+                            Mi ubicación
+                        </button>
+
+                        <button type="button" id="start-route">
+                            <i class="fa-solid fa-play"></i>
+                            Iniciar recorrido
+                        </button>
+
+                        <button type="button" id="stop-route">
+                            <i class="fa-solid fa-stop"></i>
+                            Detener recorrido
+                        </button>
+
+                        <button type="button" id="simulate-route">
+                            <i class="fa-solid fa-route"></i>
+                            Simular ruta
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- MAPA LEAFLET -->
+                <div id="map"></div>
+            </section>
+
+            <!-- ================================== -->
+            <!-- 4. PANEL LATERAL                   -->
+            <!-- ================================== -->
+            <aside id="sidebar">
+
+                <!-- Navegación de pestañas -->
+                <nav id="sidebar-navigation">
+                    <button type="button" data-tab="statistics">
+                        <i class="fa-solid fa-chart-line"></i>
+                        Estadísticas
+                    </button>
+
+                    <button type="button" data-tab="store">
+                        <i class="fa-solid fa-store"></i>
+                        Tienda
+                    </button>
+
+                    <button type="button" data-tab="reports">
+                        <i class="fa-solid fa-flag"></i>
+                        Reportes
+                    </button>
+                </nav>
+
+                <!-- ================================== -->
+                <!-- 5. ESTADÍSTICAS                    -->
+                <!-- ================================== -->
+                <section id="statistics" class="tab-content">
+                    <h2>Mis estadísticas</h2>
+
+                    <div class="stat-card">
+                        <i class="fa-solid fa-road"></i>
+                        <h3>Kilómetros recorridos</h3>
+                        <span id="total-kilometers">0 km</span>
+                    </div>
+
+                    <div class="stat-card">
+                        <i class="fa-solid fa-route"></i>
+                        <h3>Rutas completadas</h3>
+                        <span id="completed-routes">0</span>
+                    </div>
+
+                    <div class="stat-card">
+                        <i class="fa-solid fa-location-dot"></i>
+                        <h3>Lugares descubiertos</h3>
+                        <span id="discovered-places">0</span>
+                    </div>
+
+                    <!-- Historial -->
+                    <div class="history-section">
+                        <h3>Historial reciente</h3>
+                        <ul id="route-history">
+                            <li>No hay recorridos registrados.</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- ================================== -->
+                <!-- 6. TIENDA DE PERSONALIZACIÓN       -->
+                <!-- ================================== -->
+                <section id="store" class="tab-content" hidden>
+                    <h2>Tienda de personalización</h2>
+                    <p>Canjea tus puntos por objetos especiales.</p>
+
+                    <div class="store-grid">
+                        <article class="store-item">
+                            <h3>Modo oscuro</h3>
+                            <p>Tema oscuro para el mapa.</p>
+                            <span>100 puntos</span>
+                            <button type="button"
+                                data-item="dark-theme"
+                                data-cost="100">
+                                Canjear
+                            </button>
+                            <button type="button"
+                                data-equip="dark-theme">
+                                Equipar
+                            </button>
+                        </article>
+
+                        <article class="store-item">
+                            <h3>Modo Cyberpunk</h3>
+                            <p>Estilo futurista para explorar.</p>
+                            <span>250 puntos</span>
+                            <button type="button"
+                                data-item="cyberpunk-theme"
+                                data-cost="250">
+                                Canjear
+                            </button>
+                            <button type="button"
+                                data-equip="cyberpunk-theme">
+                                Equipar
+                            </button>
+                        </article>
+
+                        <article class="store-item">
+                            <h3>Cursor especial</h3>
+                            <p>Personaliza tu experiencia.</p>
+                            <span>150 puntos</span>
+                            <button type="button"
+                                data-item="custom-cursor"
+                                data-cost="150">
+                                Canjear
+                            </button>
+                            <button type="button"
+                                data-equip="custom-cursor">
+                                Equipar
+                            </button>
+                        </article>
+
+                        <article class="store-item">
+                            <h3>Ruta neón</h3>
+                            <p>Personaliza el color de tus rutas.</p>
+                            <span>200 puntos</span>
+                            <button type="button"
+                                data-item="neon-route"
+                                data-cost="200">
+                                Canjear
+                            </button>
+                            <button type="button"
+                                data-equip="neon-route">
+                                Equipar
+                            </button>
+                        </article>
+                    </div>
+                </section>
+
+                <!-- ================================== -->
+                <!-- 7. REPORTES COMUNITARIOS           -->
+                <!-- ================================== -->
+                <section id="reports" class="tab-content" hidden>
+                    <h2>Reportes comunitarios</h2>
+                    <p>
+                        Ayuda a otros exploradores compartiendo
+                        información de tu ubicación.
+                    </p>
+
+                    <form id="report-form">
+                        <h3>Crear reporte</h3>
+
+                        <label for="report-type">
+                            Tipo de reporte
+                        </label>
+                        <select id="report-type">
+                            <option value="traffic">Tráfico</option>
+                            <option value="construction">Obras en la vía</option>
+                            <option value="place">Punto de interés</option>
+                        </select>
+
+                        <label for="report-description">
+                            Descripción
+                        </label>
+                        <textarea id="report-description"
+                            placeholder="Describe lo que encontraste..."
+                            required></textarea>
+
+                        <button type="button" id="report-current-location">
+                            Usar ubicación actual
+                        </button>
+
+                        <button type="submit" id="send-report">
+                            Enviar reporte
+                        </button>
+                    </form>
+
+                    <!-- Reportes recientes -->
+                    <div class="community-reports">
+                        <h3>Reportes recientes</h3>
+                        <ul id="reports-list">
+                            <li>No hay reportes disponibles.</li>
+                        </ul>
+                    </div>
+                </section>
+
+            </aside>
+        </main>
+    </div>
+
+    <!-- ================================== -->
+    <!-- 8. LIBRERÍA LEAFLET JAVASCRIPT     -->
+    <!-- ================================== -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- ================================== -->
+    <!-- 8. PANEL DE ADMINISTRADOR (inyectado desde html/administrador) -->
+    <!-- ================================== -->
+    <!-- ==========================================
+     GEOQUEST - PANEL DE ADMINISTRADOR
+========================================== -->
+
+<div id="admin-panel" class="vista-oculta">
+
+    <!-- ENCABEZADO DEL ADMINISTRADOR -->
+    <header id="admin-header">
+
+        <div class="admin-brand">
+            <h1>GEOQUEST</h1>
+            <span>Panel de administración</span>
+        </div>
+
+        <div class="admin-header-actions">
+
+            <span class="admin-role">
+                <i class="fa-solid fa-shield-halved"></i>
+                Administrador
+            </span>
+
+            <button type="button" id="admin-back-user">
+                <i class="fa-solid fa-arrow-left"></i>
+                Volver a vista Usuario
+            </button>
+
+            <button type="button" id="admin-logout">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                Cerrar sesión
+            </button>
+
+        </div>
+
+    </header>
+
+
+    <!-- CUERPO PRINCIPAL DEL PANEL -->
+    <div id="admin-layout">
+
+        <!-- NAVEGACIÓN LATERAL -->
+        <aside id="admin-sidebar">
+
+            <div class="admin-sidebar-title">
+                <span>ADMINISTRACIÓN</span>
+            </div>
+
+            <nav id="admin-navigation">
+
+                <button type="button"
+                    class="admin-nav-btn admin-nav-active"
+                    data-admin-view="admin-dashboard">
+
+                    <i class="fa-solid fa-chart-pie"></i>
+                    Resumen general
+
+                </button>
+
+                <button type="button"
+                    class="admin-nav-btn"
+                    data-admin-view="admin-usuarios">
+
+                    <i class="fa-solid fa-users"></i>
+                    Usuarios y puntos
+
+                </button>
+
+                <button type="button"
+                    class="admin-nav-btn"
+                    data-admin-view="admin-catalogo">
+
+                    <i class="fa-solid fa-store"></i>
+                    Tienda y misiones
+
+                </button>
+
+                <button type="button"
+                    class="admin-nav-btn"
+                    data-admin-view="admin-lugares">
+
+                    <i class="fa-solid fa-map-location-dot"></i>
+                    Lugares especiales
+
+                </button>
+
+            </nav>
+
+            <div class="admin-sidebar-footer">
+                <i class="fa-solid fa-moon"></i>
+                <span>GeoQuest Administration</span>
+            </div>
+
+        </aside>
+
+
+        <!-- CONTENIDO DE ADMINISTRACIÓN -->
+        <main id="admin-content">
+
+
+            <!-- ==================================
+                 1. RESUMEN GENERAL
+            =================================== -->
+
+            <section id="admin-dashboard" class="admin-view">
+
+                <header class="admin-view-header">
+
+                    <div>
+                        <h2>Resumen General</h2>
+                        <p>Estado actual del mundo GeoQuest.</p>
+                    </div>
+
+                    <span class="admin-status">
+                        <i class="fa-solid fa-circle"></i>
+                        Sistema activo
+                    </span>
+
+                </header>
+
+
+                <!-- TARJETAS DE ESTADÍSTICAS -->
+                <div class="admin-stats-grid">
+
+                    <article class="admin-stat-card">
+
+                        <div class="admin-stat-icon blue">
+                            <i class="fa-solid fa-users"></i>
+                        </div>
+
+                        <div>
+                            <span>Total de usuarios</span>
+                            <strong id="admin-total-users">0</strong>
+                        </div>
+
+                    </article>
+
+
+                    <article class="admin-stat-card">
+
+                        <div class="admin-stat-icon soul">
+                            <i class="fa-solid fa-route"></i>
+                        </div>
+
+                        <div>
+                            <span>Kilómetros recorridos</span>
+                            <strong id="admin-total-km">0 km</strong>
+                        </div>
+
+                    </article>
+
+
+                    <article class="admin-stat-card">
+
+                        <div class="admin-stat-icon gold">
+                            <i class="fa-solid fa-star"></i>
+                        </div>
+
+                        <div>
+                            <span>Puntos repartidos</span>
+                            <strong id="admin-total-points">0</strong>
+                        </div>
+
+                    </article>
+
+
+                    <article class="admin-stat-card">
+
+                        <div class="admin-stat-icon orange">
+                            <i class="fa-solid fa-location-dot"></i>
+                        </div>
+
+                        <div>
+                            <span>Lugares especiales activos</span>
+                            <strong id="admin-total-places">0</strong>
+                        </div>
+
+                    </article>
+
+                </div>
+
+
+                <!-- ACTIVIDAD RECIENTE -->
+                <article class="admin-section-card">
+
+                    <div class="admin-section-heading">
+                        <h3>Actividad reciente</h3>
+                        <span>Últimos movimientos</span>
+                    </div>
+
+                    <div class="admin-table-container">
+
+                        <table class="admin-table">
+
+                            <thead>
+                                <tr>
+                                    <th>Usuario</th>
+                                    <th>Acción realizada</th>
+                                    <th>Hora</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="admin-recent-activity">
+
+                                <tr>
+                                    <td>Explorador01</td>
+                                    <td>Completó una ruta</td>
+                                    <td>10:30 AM</td>
+                                </tr>
+
+                                <tr>
+                                    <td>Jugador02</td>
+                                    <td>Canjeó un amuleto</td>
+                                    <td>10:15 AM</td>
+                                </tr>
+
+                                <tr>
+                                    <td>Usuario03</td>
+                                    <td>Descubrió un lugar</td>
+                                    <td>09:45 AM</td>
+                                </tr>
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </article>
+
+            </section>
+
+
+
+            <!-- ==================================
+                 2. GESTIÓN DE USUARIOS Y PUNTOS
+            =================================== -->
+
+            <section id="admin-usuarios" class="admin-view" hidden>
+
+                <header class="admin-view-header">
+
+                    <div>
+                        <h2>Gestión de usuarios</h2>
+                        <p>Administra las cuentas y los puntos Geo.</p>
+                    </div>
+
+                </header>
+
+
+                <!-- BUSCADOR -->
+                <div class="admin-search-container">
+
+                    <i class="fa-solid fa-magnifying-glass"></i>
+
+                    <input
+                        type="search"
+                        id="admin-user-search"
+                        placeholder="Buscar usuario por nombre...">
+
+                </div>
+
+
+                <!-- TABLA DE USUARIOS -->
+                <article class="admin-section-card">
+
+                    <div class="admin-section-heading">
+                        <h3>Usuarios registrados</h3>
+                        <span>Administración de cuentas</span>
+                    </div>
+
+                    <div class="admin-table-container">
+
+                        <table class="admin-table">
+
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Nivel</th>
+                                    <th>Puntos Geo</th>
+                                    <th>Rutas</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="admin-users-list">
+
+                                <tr>
+
+                                    <td>Explorador01</td>
+                                    <td>5</td>
+                                    <td>850</td>
+                                    <td>12</td>
+
+                                    <td>
+                                        <span class="user-status active">
+                                            Activo
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <div class="user-actions">
+
+                                            <button type="button"
+                                                class="action-add">
+                                                +50 Pts
+                                            </button>
+
+                                            <button type="button"
+                                                class="action-remove">
+                                                -50 Pts
+                                            </button>
+
+                                            <button type="button"
+                                                class="action-suspend">
+                                                Suspender
+                                            </button>
+
+                                            <button type="button"
+                                                class="action-reset">
+                                                Reiniciar
+                                            </button>
+
+                                        </div>
+                                    </td>
+
+                                </tr>
+
+
+                                <tr>
+
+                                    <td>Jugador02</td>
+                                    <td>3</td>
+                                    <td>420</td>
+                                    <td>7</td>
+
+                                    <td>
+                                        <span class="user-status suspended">
+                                            Suspendido
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <div class="user-actions">
+
+                                            <button type="button"
+                                                class="action-add">
+                                                +50 Pts
+                                            </button>
+
+                                            <button type="button"
+                                                class="action-remove">
+                                                -50 Pts
+                                            </button>
+
+                                            <button type="button"
+                                                class="action-suspend">
+                                                Activar
+                                            </button>
+
+                                            <button type="button"
+                                                class="action-reset">
+                                                Reiniciar
+                                            </button>
+
+                                        </div>
+                                    </td>
+
+                                </tr>
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </article>
+
+            </section>
+
+
+
+            <!-- ==================================
+                 3. CATÁLOGO DE TIENDA Y MISIONES
+            =================================== -->
+
+            <section id="admin-catalogo" class="admin-view" hidden>
+
+                <header class="admin-view-header">
+
+                    <div>
+                        <h2>Tienda y misiones</h2>
+                        <p>Controla las recompensas y desafíos.</p>
+                    </div>
+
+                </header>
+
+
+                <!-- SUBSECCIÓN: RECOMPENSAS -->
+                <section class="admin-subsection">
+
+                    <div class="admin-section-heading">
+                        <h3>
+                            <i class="fa-solid fa-gem"></i>
+                            Catálogo de recompensas
+                        </h3>
+
+                        <span>Administración de objetos</span>
+                    </div>
+
+
+                    <div class="admin-rewards-grid">
+
+                        <!-- RECOMPENSA 1 -->
+                        <article class="admin-reward-card">
+
+                            <div class="reward-icon">
+                                <i class="fa-solid fa-moon"></i>
+                            </div>
+
+                            <h4>Modo oscuro</h4>
+                            <p>Tema oscuro del mapa.</p>
+
+                            <label for="price-dark">
+                                Precio en puntos
+                            </label>
+
+                            <input type="number"
+                                id="price-dark"
+                                min="0"
+                                value="100">
+
+                            <button type="button"
+                                class="save-price">
+                                Guardar precio
+                            </button>
+
+                            <label class="admin-toggle">
+                                <input type="checkbox"
+                                    id="active-dark"
+                                    checked>
+                                <span>Ítem activo</span>
+                            </label>
+
+                        </article>
+
+
+                        <!-- RECOMPENSA 2 -->
+                        <article class="admin-reward-card">
+
+                            <div class="reward-icon">
+                                <i class="fa-solid fa-bolt"></i>
+                            </div>
+
+                            <h4>Modo Cyberpunk</h4>
+                            <p>Estilo futurista del mapa.</p>
+
+                            <label for="price-cyber">
+                                Precio en puntos
+                            </label>
+
+                            <input type="number"
+                                id="price-cyber"
+                                min="0"
+                                value="250">
+
+                            <button type="button"
+                                class="save-price">
+                                Guardar precio
+                            </button>
+
+                            <label class="admin-toggle">
+                                <input type="checkbox"
+                                    id="active-cyber"
+                                    checked>
+                                <span>Ítem activo</span>
+                            </label>
+
+                        </article>
+
+
+                        <!-- RECOMPENSA 3 -->
+                        <article class="admin-reward-card">
+
+                            <div class="reward-icon">
+                                <i class="fa-solid fa-arrow-pointer"></i>
+                            </div>
+
+                            <h4>Cursor Soul</h4>
+                            <p>Cursor personalizado.</p>
+
+                            <label for="price-cursor">
+                                Precio en puntos
+                            </label>
+
+                            <input type="number"
+                                id="price-cursor"
+                                min="0"
+                                value="150">
+
+                            <button type="button"
+                                class="save-price">
+                                Guardar precio
+                            </button>
+
+                            <label class="admin-toggle">
+                                <input type="checkbox"
+                                    id="active-cursor"
+                                    checked>
+                                <span>Ítem activo</span>
+                            </label>
+
+                        </article>
+
+
+                        <!-- RECOMPENSA 4 -->
+                        <article class="admin-reward-card">
+
+                            <div class="reward-icon">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </div>
+
+                            <h4>Estela de Alma</h4>
+                            <p>Estela especial de recorrido.</p>
+
+                            <label for="price-trail">
+                                Precio en puntos
+                            </label>
+
+                            <input type="number"
+                                id="price-trail"
+                                min="0"
+                                value="200">
+
+                            <button type="button"
+                                class="save-price">
+                                Guardar precio
+                            </button>
+
+                            <label class="admin-toggle">
+                                <input type="checkbox"
+                                    id="active-trail"
+                                    checked>
+                                <span>Ítem activo</span>
+                            </label>
+
+                        </article>
+
+                    </div>
+
+                </section>
+
+
+                <!-- SUBSECCIÓN: MISIONES -->
+                <section class="admin-subsection">
+
+                    <div class="admin-section-heading">
+                        <h3>
+                            <i class="fa-solid fa-scroll"></i>
+                            Administración de misiones
+                        </h3>
+
+                        <span>Crear y gestionar desafíos</span>
+                    </div>
+
+
+                    <!-- FORMULARIO DE NUEVA MISIÓN -->
+                    <article class="admin-section-card">
+
+                        <h3 class="admin-form-title">
+                            Crear nueva misión
+                        </h3>
+
+                        <form id="admin-mission-form">
+
+                            <div class="admin-form-grid">
+
+                                <div class="admin-form-group">
+
+                                    <label for="mission-title">
+                                        Título de la misión
+                                    </label>
+
+                                    <input type="text"
+                                        id="mission-title"
+                                        placeholder="Ej. Explorador experto"
+                                        required>
+
+                                </div>
+
+
+                                <div class="admin-form-group">
+
+                                    <label for="mission-type">
+                                        Tipo de meta
+                                    </label>
+
+                                    <select id="mission-type">
+
+                                        <option value="km">
+                                            Kilómetros recorridos
+                                        </option>
+
+                                        <option value="routes">
+                                            Rutas completadas
+                                        </option>
+
+                                    </select>
+
+                                </div>
+
+
+                                <div class="admin-form-group">
+
+                                    <label for="mission-goal">
+                                        Cantidad de la meta
+                                    </label>
+
+                                    <input type="number"
+                                        id="mission-goal"
+                                        min="1"
+                                        placeholder="Ej. 10"
+                                        required>
+
+                                </div>
+
+
+                                <div class="admin-form-group">
+
+                                    <label for="mission-reward">
+                                        Recompensa en puntos
+                                    </label>
+
+                                    <input type="number"
+                                        id="mission-reward"
+                                        min="1"
+                                        placeholder="Ej. 100"
+                                        required>
+
+                                </div>
+
+                            </div>
+
+                            <button type="submit"
+                                class="admin-primary-button">
+
+                                <i class="fa-solid fa-plus"></i>
+                                Crear misión
+
+                            </button>
+
+                        </form>
+
+                    </article>
+
+
+                    <!-- MISIONES ACTIVAS -->
+                    <article class="admin-section-card">
+
+                        <div class="admin-section-heading">
+                            <h3>Misiones activas</h3>
+                            <span>Desafíos disponibles</span>
+                        </div>
+
+                        <div class="admin-table-container">
+
+                            <table class="admin-table">
+
+                                <thead>
+                                    <tr>
+                                        <th>Misión</th>
+                                        <th>Meta</th>
+                                        <th>Recompensa</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody id="admin-missions-list">
+
+                                    <tr>
+
+                                        <td>Primeros pasos</td>
+                                        <td>5 km</td>
+                                        <td>100 puntos</td>
+
+                                        <td>
+                                            <span class="user-status active">
+                                                Activa
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            <button type="button"
+                                                class="action-delete">
+                                                Eliminar
+                                            </button>
+                                        </td>
+
+                                    </tr>
+
+                                    <tr>
+
+                                        <td>Descubridor</td>
+                                        <td>10 km</td>
+                                        <td>150 puntos</td>
+
+                                        <td>
+                                            <span class="user-status active">
+                                                Activa
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            <button type="button"
+                                                class="action-delete">
+                                                Eliminar
+                                            </button>
+                                        </td>
+
+                                    </tr>
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </article>
+
+                </section>
+
+            </section>
+
+
+
+            <!-- ==================================
+                 4. LUGARES ESPECIALES / SANTUARIOS
+            =================================== -->
+
+            <section id="admin-lugares" class="admin-view" hidden>
+
+                <header class="admin-view-header">
+
+                    <div>
+                        <h2>Lugares especiales</h2>
+                        <p>Crea puntos de interés y recompensas para los exploradores.</p>
+                    </div>
+
+                </header>
+
+
+                <!-- FORMULARIO DE NUEVO LUGAR -->
+                <article class="admin-section-card">
+
+                    <div class="admin-section-heading">
+
+                        <h3>
+                            <i class="fa-solid fa-location-dot"></i>
+                            Publicar nuevo santuario
+                        </h3>
+
+                    </div>
+
+
+                    <form id="admin-place-form">
+
+                        <div class="admin-form-grid">
+
+                            <div class="admin-form-group">
+
+                                <label for="place-name">
+                                    Nombre del lugar
+                                </label>
+
+                                <input type="text"
+                                    id="place-name"
+                                    placeholder="Ej. Santuario de Cristal"
+                                    required>
+
+                            </div>
+
+
+                            <div class="admin-form-group">
+
+                                <label for="place-latitude">
+                                    Latitud
+                                </label>
+
+                                <input type="number"
+                                    id="place-latitude"
+                                    step="any"
+                                    min="-90"
+                                    max="90"
+                                    placeholder="Ej. 6.2442"
+                                    required>
+
+                            </div>
+
+
+                            <div class="admin-form-group">
+
+                                <label for="place-longitude">
+                                    Longitud
+                                </label>
+
+                                <input type="number"
+                                    id="place-longitude"
+                                    step="any"
+                                    min="-180"
+                                    max="180"
+                                    placeholder="Ej. -75.5812"
+                                    required>
+
+                            </div>
+
+
+                            <div class="admin-form-group">
+
+                                <label for="place-reward">
+                                    Puntos por visitar
+                                </label>
+
+                                <input type="number"
+                                    id="place-reward"
+                                    min="0"
+                                    placeholder="Ej. 100"
+                                    required>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="admin-place-actions">
+
+                            <button type="button"
+                                id="select-place-map"
+                                class="admin-secondary-button">
+
+                                <i class="fa-solid fa-map"></i>
+                                Seleccionar en mapa
+
+                            </button>
+
+
+                            <button type="submit"
+                                class="admin-primary-button">
+
+                                <i class="fa-solid fa-upload"></i>
+                                Publicar lugar
+
+                            </button>
+
+                        </div>
+
+                    </form>
+
+                </article>
+
+
+                <!-- LISTADO DE LUGARES -->
+                <article class="admin-section-card">
+
+                    <div class="admin-section-heading">
+
+                        <h3>Lugares publicados</h3>
+                        <span>Administración de santuarios</span>
+
+                    </div>
+
+
+                    <div class="admin-table-container">
+
+                        <table class="admin-table">
+
+                            <thead>
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Latitud</th>
+                                    <th>Longitud</th>
+                                    <th>Recompensa</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+
+                            <tbody id="admin-places-list">
+
+                                <tr>
+
+                                    <td>Santuario de Cristal</td>
+                                    <td>6.2442</td>
+                                    <td>-75.5812</td>
+                                    <td>100 puntos</td>
+
+                                    <td>
+                                        <div class="user-actions">
+
+                                            <button type="button"
+                                                class="action-edit">
+                                                Editar
+                                            </button>
+
+                                            <button type="button"
+                                                class="action-delete">
+                                                Eliminar
+                                            </button>
+
+                                        </div>
+                                    </td>
+
+                                </tr>
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </article>
+
+            </section>
+
+        </main>
+
+    </div>
+
+</div>
+
+        <!-- Notificaciones propias -->
+    <div id="toast-container"></div>
+
+    <!-- Lógica propia (sin ES modules: las vistas usan IDs y eventos del DOM) -->
+    <script src="js/datos.js"></script>
+    <script src="js/usuario.js"></script>
+    <script src="js/admin.js"></script>
+</body>
+
+</html>

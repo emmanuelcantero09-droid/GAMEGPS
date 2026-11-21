@@ -4,6 +4,11 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Sin Google Mobile Services: la ubicación usa el LocationManager nativo.
+configurations.all {
+    exclude(group = "com.google.android.gms")
+}
+
 android {
     namespace = "com.gamegps.game_gps"
     // permission_handler 13 requiere compileSdk 37 o superior.

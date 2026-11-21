@@ -1,0 +1,359 @@
+/*
+ * GEOQUEST · Base
+ * Diseño propio inspirado en el abismo de Hollow Knight.
+ * Sin fuentes, iconos ni estilos de Google.
+ */
+
+:root {
+  --abismo: #080a0e;
+  --abismo-claro: #11151c;
+  --piedra: #19202a;
+  --piedra-borde: #2c3746;
+  --alma: #f0f4f8;
+  --savia: #56c7f5;
+  --savia-oscura: #1c7fb0;
+  --radiancia: #f08a3c;
+  --oro: #e9c46a;
+  --verdad: #7ddb9a;
+  --peligro: #e06c75;
+  --texto: #dbe4ee;
+  --texto-suave: #94a6b8;
+  --borde-sutil: rgba(226, 235, 245, 0.16);
+  --brillo-alma: 0 0 16px rgba(240, 244, 248, 0.18);
+  --brillo-savia: 0 0 18px rgba(86, 199, 245, 0.28);
+  --sombra: 0 14px 34px rgba(0, 0, 0, 0.55);
+  --fuente-titulo: Georgia, "Times New Roman", "Book Antiqua", serif;
+  --fuente-cuerpo: "Segoe UI", Tahoma, Verdana, sans-serif;
+  --transicion: 0.22s ease;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--texto);
+  font-family: var(--fuente-cuerpo);
+  font-size: 14px;
+  line-height: 1.5;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(86, 199, 245, 0.07), transparent 38%),
+    radial-gradient(circle at 88% 92%, rgba(240, 138, 60, 0.06), transparent 42%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 4px),
+    var(--abismo);
+  overflow-x: hidden;
+}
+
+[hidden],
+.vista-oculta {
+  display: none !important;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--fuente-titulo);
+  font-weight: 600;
+  color: var(--alma);
+  letter-spacing: 1.2px;
+}
+
+h1 { font-size: 30px; }
+h2 { font-size: 22px; }
+h3 { font-size: 16px; }
+h4 { font-size: 14px; }
+
+p { color: var(--texto-suave); }
+
+a { color: var(--savia); }
+
+ul {
+  list-style: none;
+}
+
+/* ---------- Controles ---------- */
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 11px 13px;
+  color: var(--texto);
+  font: inherit;
+  font-size: 13px;
+  background: rgba(8, 10, 14, 0.78);
+  border: 1px solid var(--piedra-borde);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color var(--transicion), box-shadow var(--transicion);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #687b8e;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--savia);
+  box-shadow: var(--brillo-savia);
+}
+
+textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  color: var(--alma);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  background: linear-gradient(160deg, var(--piedra), var(--abismo-claro));
+  border: 1px solid var(--piedra-borde);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform var(--transicion), border-color var(--transicion), box-shadow var(--transicion);
+}
+
+button:hover {
+  transform: translateY(-1px);
+  border-color: var(--savia);
+  box-shadow: var(--brillo-savia);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+button i {
+  color: var(--savia);
+}
+
+/* ---------- Tarjetas genéricas ---------- */
+
+.tarjeta,
+.auth-container,
+.stat-card,
+.store-item,
+.admin-section-card,
+.admin-stat-card,
+.admin-reward-card {
+  position: relative;
+  background: linear-gradient(155deg, var(--piedra), var(--abismo-claro));
+  border: 1px solid var(--piedra-borde);
+  border-radius: 10px;
+  box-shadow: var(--sombra);
+}
+
+.tarjeta::before,
+.auth-container::before,
+.admin-section-card::before,
+.admin-reward-card::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 18px;
+  width: 58px;
+  height: 2px;
+  background: var(--savia);
+  box-shadow: var(--brillo-savia);
+}
+
+/* ---------- Autenticación ---------- */
+
+#auth-section {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 18px;
+}
+
+.auth-container {
+  width: 100%;
+  max-width: 430px;
+  padding: 38px 32px 30px;
+  text-align: center;
+  animation: aparecer 0.4s ease;
+}
+
+.auth-container h1 {
+  font-size: 34px;
+  letter-spacing: 6px;
+  text-shadow: var(--brillo-alma);
+}
+
+.auth-container > p {
+  margin: 6px 0 24px;
+  font-size: 13px;
+}
+
+.auth-container form {
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+
+.auth-container form h2 {
+  margin-bottom: 4px;
+  font-size: 18px;
+  text-align: center;
+}
+
+.auth-container label {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.auth-container form > p {
+  margin-top: 4px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.auth-container form > p button {
+  padding: 2px 4px;
+  color: var(--savia);
+  background: none;
+  border: none;
+  text-transform: none;
+  text-decoration: underline;
+}
+
+.auth-container form > button,
+#guest-mode {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px;
+  color: var(--abismo);
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--alma), #b9d7e8);
+  border-color: var(--alma);
+}
+
+.auth-container form > button:hover,
+#guest-mode:hover {
+  box-shadow: var(--brillo-alma);
+  border-color: var(--alma);
+}
+
+#guest-mode {
+  margin-top: 18px;
+  color: var(--alma);
+  background: transparent;
+}
+
+/* ---------- Tablas ---------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+th {
+  padding: 12px 14px;
+  color: var(--texto-suave);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.1px;
+  text-align: left;
+  text-transform: uppercase;
+  background: rgba(8, 10, 14, 0.55);
+  border-bottom: 1px solid var(--piedra-borde);
+}
+
+td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(44, 55, 70, 0.65);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover {
+  background: rgba(86, 199, 245, 0.045);
+}
+
+/* ---------- Notificaciones ---------- */
+
+#toast-container {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.toast {
+  min-width: 220px;
+  max-width: 340px;
+  padding: 12px 16px;
+  font-size: 12px;
+  background: var(--piedra);
+  border: 1px solid var(--savia);
+  border-left: 3px solid var(--savia);
+  border-radius: 6px;
+  box-shadow: var(--sombra), var(--brillo-savia);
+  animation: aparecer 0.25s ease;
+}
+
+.toast.error {
+  border-color: var(--peligro);
+  border-left-color: var(--peligro);
+}
+
+.toast i {
+  margin-right: 8px;
+}
+
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Scrollbars del tema ---------- */
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--abismo);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--piedra-borde);
+  border-radius: 6px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--savia-oscura);
+}

@@ -1,0 +1,122 @@
+/*
+ * GEOQUEST · Ajustes para tablet y móvil
+ * Se carga al final para sobrescribir el layout de escritorio.
+ */
+
+@media (max-width: 1080px) {
+  #main-content {
+    grid-template-columns: minmax(0, 1fr) 310px;
+  }
+
+  #admin-layout {
+    grid-template-columns: 205px minmax(0, 1fr);
+  }
+
+  #admin-content {
+    padding: 20px;
+  }
+
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  #main-header {
+    padding: 10px 14px;
+  }
+
+  #main-content {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+  }
+
+  #map-section {
+    min-height: 55vh;
+  }
+
+  #sidebar {
+    border-left: none;
+    border-top: 1px solid var(--piedra-borde);
+  }
+
+  #admin-header {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+
+  #admin-layout {
+    display: block;
+  }
+
+  #admin-sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--piedra-borde);
+  }
+
+  #admin-navigation {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-sidebar-footer {
+    display: none;
+  }
+
+  #admin-content {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  .app-logo h1 {
+    font-size: 18px;
+    letter-spacing: 2px;
+  }
+
+  .user-info,
+  #user-avatar {
+    display: none;
+  }
+
+  .user-points {
+    padding: 6px 9px;
+    font-size: 11px;
+  }
+
+  .map-controls {
+    top: 10px;
+    left: 10px;
+    width: calc(100% - 20px);
+  }
+
+  .gps-controls button {
+    flex: 1 1 45%;
+  }
+
+  .admin-brand span,
+  .admin-role {
+    display: none;
+  }
+
+  .admin-view-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-stats-grid,
+  #admin-navigation {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-rewards-grid,
+  .admin-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #toast-container {
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+  }
+}

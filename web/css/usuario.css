@@ -1,0 +1,405 @@
+/*
+ * GEOQUEST · Interfaz del Viajero
+ * Mapa, controles GPS, estadísticas, tienda y reportes.
+ */
+
+#app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ---------- Cabecera ---------- */
+
+#main-header {
+  position: relative;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: linear-gradient(90deg, var(--abismo-claro), var(--piedra));
+  border-bottom: 1px solid var(--piedra-borde);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.app-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-logo::before {
+  content: "";
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--alma);
+  border-radius: 50% 50% 45% 45%;
+  box-shadow: var(--brillo-alma), inset 0 0 8px rgba(240, 244, 248, 0.25);
+}
+
+.app-logo h1 {
+  font-size: 23px;
+  letter-spacing: 4px;
+  text-shadow: var(--brillo-alma);
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+#user-avatar {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border: 1px solid var(--savia);
+  border-radius: 50%;
+  background: var(--abismo);
+  box-shadow: var(--brillo-savia);
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+#username {
+  color: var(--alma);
+  font-family: var(--fuente-titulo);
+  font-size: 14px;
+}
+
+#user-level {
+  color: var(--texto-suave);
+  font-size: 11px;
+}
+
+.user-points {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  color: var(--oro);
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(233, 196, 106, 0.08);
+  border: 1px solid rgba(233, 196, 106, 0.3);
+  border-radius: 20px;
+}
+
+.user-points i {
+  color: var(--oro);
+}
+
+/* ---------- Cuerpo: mapa + panel lateral ---------- */
+
+#main-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  height: calc(100vh - 70px);
+  min-height: 560px;
+}
+
+#map-section {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--abismo-claro);
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  background: #0d1117;
+}
+
+.leaflet-container {
+  font-family: var(--fuente-cuerpo);
+  background: var(--abismo-claro);
+}
+
+/* Mapa nocturno, sin aspecto de Google Maps */
+.leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(185deg) brightness(82%) contrast(92%) saturate(70%);
+}
+
+.tema-cyberpunk .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(235deg) brightness(75%) saturate(180%);
+}
+
+.leaflet-control-attribution {
+  font-size: 9px;
+  color: var(--texto-suave);
+  background: rgba(8, 10, 14, 0.75);
+}
+
+.leaflet-control-attribution a {
+  color: var(--savia);
+}
+
+.leaflet-bar a,
+.leaflet-bar a:hover {
+  color: var(--alma);
+  background: var(--piedra);
+  border-bottom-color: var(--piedra-borde);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  color: var(--texto);
+  background: var(--piedra);
+}
+
+/* ---------- Controles sobre el mapa ---------- */
+
+.map-controls {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 450;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(390px, calc(100% - 36px));
+}
+
+#destination-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(17, 21, 28, 0.94);
+  border: 1px solid var(--piedra-borde);
+  border-radius: 8px;
+  box-shadow: var(--sombra);
+}
+
+#destination-search button {
+  padding: 10px 14px;
+}
+
+.gps-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gps-controls button {
+  flex: 1 1 auto;
+  padding: 9px 11px;
+  font-size: 10px;
+  white-space: nowrap;
+  background: rgba(17, 21, 28, 0.94);
+  box-shadow: var(--sombra);
+}
+
+.gps-controls button.activo {
+  border-color: var(--radiancia);
+  color: var(--radiancia);
+}
+
+.gps-controls button.activo i {
+  color: var(--radiancia);
+}
+
+/* ---------- Panel lateral ---------- */
+
+#sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  background: linear-gradient(180deg, var(--abismo-claro), var(--abismo));
+  border-left: 1px solid var(--piedra-borde);
+}
+
+#sidebar-navigation {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  padding: 10px;
+  background: rgba(8, 10, 14, 0.6);
+  border-bottom: 1px solid var(--piedra-borde);
+}
+
+#sidebar-navigation button {
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 4px;
+  font-size: 9px;
+  letter-spacing: 0.3px;
+  background: transparent;
+  border-color: transparent;
+}
+
+#sidebar-navigation button i {
+  font-size: 16px;
+}
+
+#sidebar-navigation button.activo {
+  color: var(--alma);
+  background: rgba(86, 199, 245, 0.08);
+  border-color: var(--savia);
+  box-shadow: var(--brillo-savia);
+}
+
+.tab-content {
+  padding: 20px;
+  animation: aparecer 0.25s ease;
+}
+
+.tab-content > h2 {
+  margin-bottom: 4px;
+  font-size: 19px;
+}
+
+.tab-content > p {
+  margin-bottom: 18px;
+  font-size: 12px;
+}
+
+/* ---------- Estadísticas ---------- */
+
+.stat-card {
+  padding: 15px 16px;
+  margin-bottom: 12px;
+  transition: border-color var(--transicion), transform var(--transicion);
+}
+
+.stat-card:hover {
+  transform: translateX(3px);
+  border-color: var(--savia);
+}
+
+.stat-card i {
+  float: right;
+  color: var(--savia);
+  font-size: 17px;
+  opacity: 0.8;
+}
+
+.stat-card h3 {
+  font-family: var(--fuente-cuerpo);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.stat-card span {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--fuente-titulo);
+  font-size: 25px;
+  color: var(--alma);
+}
+
+.history-section {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--piedra-borde);
+}
+
+.history-section h3,
+.community-reports h3 {
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+#route-history li,
+#reports-list li {
+  padding: 10px 0;
+  font-size: 12px;
+  color: var(--texto-suave);
+  border-bottom: 1px solid rgba(44, 55, 70, 0.6);
+}
+
+#route-history li strong {
+  display: block;
+  color: var(--alma);
+  font-weight: 600;
+}
+
+/* ---------- Tienda ---------- */
+
+.store-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.store-item {
+  padding: 16px;
+  transition: border-color var(--transicion), transform var(--transicion);
+}
+
+.store-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--oro);
+}
+
+.store-item h3 {
+  font-size: 15px;
+}
+
+.store-item p {
+  margin: 5px 0 10px;
+  font-size: 12px;
+}
+
+.store-item > span {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--oro);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+
+.store-item button {
+  padding: 8px 12px;
+  margin-right: 6px;
+  font-size: 10px;
+}
+
+.store-item button[data-equip] {
+  color: var(--savia);
+}
+
+.store-item.equipado {
+  border-color: var(--savia);
+  box-shadow: var(--brillo-savia);
+}
+
+/* ---------- Reportes ---------- */
+
+#report-form {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+  background: rgba(8, 10, 14, 0.55);
+  border: 1px solid var(--piedra-borde);
+  border-radius: 8px;
+}
+
+#report-form h3 {
+  margin-bottom: 2px;
+}
+
+#report-form label {
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.community-reports {
+  padding-top: 16px;
+  border-top: 1px solid var(--piedra-borde);
+}
