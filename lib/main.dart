@@ -46,8 +46,14 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  static const int _maxIntentosGps = 4;
+
   MapController? _mapController;
   StreamSubscription<geo.Position>? _posicionStream;
+  Timer? _reintentoGps;
+  int _intentosGps = 0;
+  bool _reintentando = false;
+  bool _avisoEsGps = false;
   String? _mensaje;
   String? _etiquetaAccion;
   VoidCallback? _accionAviso;
@@ -76,6 +82,7 @@ class _MapScreenState extends State<MapScreen> {
   void dispose() {
     // Evita que el GPS y la búsqueda sigan activos tras cerrar la pantalla.
     _posicionStream?.cancel();
+    _reintentoGps?.cancel();
     _busquedaTimer?.cancel();
     _buscador.dispose();
     super.dispose();
@@ -101,64 +108,116 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Pide el permiso y arranca el seguimiento continuo de la posición.
   Future<void> _ubicar() async {
+    _reintentoGps?.cancel();
+    _reintentando = false;
+    _intentosGps = 0;
     setState(() {
       _mensaje = null;
+      _avisoEsGps = false;
       _accionAviso = null;
       _etiquetaAccion = null;
     });
+    await _iniciarSeguimiento(pedirPermiso: true);
+  }
 
-    final permiso = await Permission.locationWhenInUse.request();
-    if (!permiso.isGranted) {
+  /// Configura el GPS y se suscribe al flujo continuo de posiciones.
+  Future<void> _iniciarSeguimiento({required bool pedirPermiso}) async {
+    if (pedirPermiso) {
+      final permiso = await Permission.locationWhenInUse.request();
+      if (!permiso.isGranted) {
+        _mostrarMensaje(
+          permiso.isPermanentlyDenied
+              ? 'Permiso denegado para siempre. Actívalo en Ajustes del sistema.'
+              : 'Necesitamos tu permiso para mostrarte en el mapa.',
+          etiquetaAccion: permiso.isPermanentlyDenied ? 'Abrir ajustes' : null,
+          accion: permiso.isPermanentlyDenied ? openAppSettings : null,
+        );
+        return;
+      }
+    }
+
+    if (!await geo.Geolocator.isLocationServiceEnabled()) {
       _mostrarMensaje(
-        permiso.isPermanentlyDenied
-            ? 'Permiso denegado para siempre. Actívalo en Ajustes del sistema.'
-            : 'Necesitamos tu permiso para mostrarte en el mapa.',
-        etiquetaAccion: permiso.isPermanentlyDenied ? 'Abrir ajustes' : null,
-        accion: permiso.isPermanentlyDenied ? openAppSettings : null,
+        'Activa el GPS del dispositivo para continuar.',
+        esGps: true,
       );
       return;
     }
 
-    if (!await geo.Geolocator.isLocationServiceEnabled()) {
-      _mostrarMensaje('Activa el GPS del dispositivo para continuar.');
-      return;
-    }
-
     // Fuerza el LocationManager de Android: así no dependemos de Google Play.
+    // En Android 12+ usa el proveedor fusionado del sistema cuando está activo.
     final ajustes = geo.AndroidSettings(
       forceLocationManager: true,
       accuracy: geo.LocationAccuracy.high,
       distanceFilter: 3,
       intervalDuration: const Duration(seconds: 2),
-      timeLimit: const Duration(seconds: 10),
+      timeLimit: const Duration(seconds: 8),
     );
 
     try {
-      final inicial = await geo.Geolocator.getCurrentPosition(
-        locationSettings: ajustes,
-      );
-      _aplicarPosicion(inicial);
+      // Solo esperamos la primera posición; en los reintentos ya tenemos una.
+      if (_posicion == null) {
+        final inicial = await geo.Geolocator.getCurrentPosition(
+          locationSettings: ajustes,
+        );
+        _aplicarPosicion(inicial);
+      }
 
       await _posicionStream?.cancel();
       _posicionStream = geo.Geolocator.getPositionStream(
         locationSettings: ajustes,
       ).listen(
         _aplicarPosicion,
-        onError: (_) =>
-            _mostrarMensaje('Se perdió la señal GPS. Reintentando…'),
+        onError: (_) => _falloGps('Se perdió la señal GPS.'),
+        onDone: () => _falloGps('Se cerró la señal GPS.'),
       );
-
     } on Exception {
-      _mostrarMensaje('No se pudo obtener tu ubicación. Inténtalo de nuevo.');
+      _falloGps('No se pudo obtener tu ubicación.');
     }
+  }
+
+  /// Programa un reintento real: antes el mensaje lo prometía y no lo hacía.
+  void _falloGps(String motivo) {
+    if (_reintentando || !mounted) return;
+    _reintentando = true;
+    _posicionStream?.cancel();
+    _posicionStream = null;
+    _intentosGps++;
+
+    if (_intentosGps > _maxIntentosGps) {
+      _mostrarMensaje(
+        '$motivo No se pudo recuperar la señal.',
+        etiquetaAccion: 'Reintentar',
+        accion: _ubicar,
+        esGps: true,
+      );
+      return;
+    }
+
+    final segundos = _intentosGps * 2;
+    _mostrarMensaje('$motivo Reintentando en $segundos s…', esGps: true);
+    _reintentoGps?.cancel();
+    _reintentoGps = Timer(Duration(seconds: segundos), () {
+      _reintentando = false;
+      _iniciarSeguimiento(pedirPermiso: false);
+    });
   }
 
   /// Actualiza el marcador, fija el centro del mapa local una sola vez
   /// y acerca la cámara si el modo "seguir" está activo.
   void _aplicarPosicion(geo.Position posicion) {
     if (!mounted) return;
+    _reintentoGps?.cancel();
+    _reintentando = false;
+    _intentosGps = 0;
     final fijarCentro = !_centroFijado;
     setState(() {
+      if (_avisoEsGps) {
+        _mensaje = null;
+        _etiquetaAccion = null;
+        _accionAviso = null;
+        _avisoEsGps = false;
+      }
       _posicion = posicion;
       if (fijarCentro) {
         _centroLon = posicion.longitude;
@@ -375,12 +434,14 @@ class _MapScreenState extends State<MapScreen> {
     String texto, {
     String? etiquetaAccion,
     VoidCallback? accion,
+    bool esGps = false,
   }) {
     if (!mounted) return;
     setState(() {
       _mensaje = texto;
       _etiquetaAccion = etiquetaAccion;
       _accionAviso = accion;
+      _avisoEsGps = esGps;
     });
   }
 

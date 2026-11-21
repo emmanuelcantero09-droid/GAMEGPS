@@ -20,7 +20,7 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 
 1. ✅ Mapa interactivo.
 2. ✅ Mapa local propio (sin internet, sin API key y sin permisos).
-3. ✅ Ubicación del dispositivo con permiso y seguimiento en tiempo real (el indicador se mueve contigo y la cámara te sigue; puedes desactivarlo con el botón GPS).
+3. ✅ Ubicación del dispositivo con permiso y seguimiento en tiempo real (el indicador se mueve contigo y la cámara te sigue; puedes desactivarlo con el botón GPS). Si se pierde la señal, la app reintenta automáticamente cada 2, 4, 6 y 8 segundos; tras 4 intentos ofrece un botón **Reintentar**. Si el permiso fue denegado permanentemente, el aviso incluye **Abrir ajustes**.
 4. ✅ Barra de búsqueda de lugares reales (OpenStreetMap vía Photon, sin API key): marcador, coordenadas y distancia desde ti.
 5. Acercar / alejar.
 6. Marcadores personalizados.
