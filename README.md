@@ -20,7 +20,7 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 
 1. ✅ Mapa interactivo.
 2. ✅ Mapa local propio (sin internet, sin API key y sin permisos).
-3. ✅ Ubicación del dispositivo con permiso del usuario.
+3. ✅ Ubicación del dispositivo con permiso y seguimiento en tiempo real (el indicador se mueve contigo y la cámara te sigue; puedes desactivarlo con el botón GPS).
 4. Acercar / alejar.
 5. Marcadores personalizados.
 6. Ubicaciones favoritas.

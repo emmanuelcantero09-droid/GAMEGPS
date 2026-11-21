@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:maplibre/maplibre.dart';
 import 'package:material_ui/material_ui.dart';
@@ -44,10 +46,14 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   MapController? _mapController;
+  StreamSubscription<geo.Position>? _posicionStream;
   String? _mensaje;
   geo.Position? _posicion;
   ProveedorMapaId _proveedor = ProveedorMapaId.local;
-  bool _ubicacionSolicitada = false;
+  bool _siguiendo = true;
+  bool _centroFijado = false;
+  double _centroLon = MapaLocal.centroPorDefectoLon;
+  double _centroLat = MapaLocal.centroPorDefectoLat;
   SkinId _skin = SkinId.clasico;
   SharedPreferences? _prefs;
 
@@ -55,6 +61,13 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _cargarPreferencias();
+  }
+
+  @override
+  void dispose() {
+    // Evita que el GPS siga enviando eventos después de cerrar la pantalla.
+    _posicionStream?.cancel();
+    super.dispose();
   }
 
   Future<void> _cargarPreferencias() async {
@@ -75,7 +88,7 @@ class _MapScreenState extends State<MapScreen> {
     });
   }
 
-  /// Pide el permiso, obtiene la posición y lleva el mapa hasta ella.
+  /// Pide el permiso y arranca el seguimiento continuo de la posición.
   Future<void> _ubicar() async {
     setState(() => _mensaje = null);
 
@@ -94,34 +107,60 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
+    // Fuerza el LocationManager de Android: así no dependemos de Google Play.
+    final ajustes = geo.AndroidSettings(
+      forceLocationManager: true,
+      accuracy: geo.LocationAccuracy.high,
+      distanceFilter: 3,
+      intervalDuration: const Duration(seconds: 2),
+      timeLimit: const Duration(seconds: 10),
+    );
+
     try {
-      final posicion = await geo.Geolocator.getCurrentPosition(
-        locationSettings: geo.AndroidSettings(
-          forceLocationManager: true,
-          accuracy: geo.LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
-        ),
+      final inicial = await geo.Geolocator.getCurrentPosition(
+        locationSettings: ajustes,
       );
-      if (!mounted) return;
-      setState(() => _posicion = posicion);
+      _aplicarPosicion(inicial);
 
-      final controller = _mapController;
-      if (controller == null) return;
+      await _posicionStream?.cancel();
+      _posicionStream = geo.Geolocator.getPositionStream(
+        locationSettings: ajustes,
+      ).listen(
+        _aplicarPosicion,
+        onError: (_) =>
+            _mostrarMensaje('Se perdió la señal GPS. Reintentando…'),
+      );
 
-      await controller.animateCamera(
-        center: Geographic(lon: posicion.longitude, lat: posicion.latitude),
-        zoom: 16,
-        nativeDuration: const Duration(milliseconds: 900),
-      );
-      await controller.enableLocation(
-        pulse: true,
-        pulseFade: true,
-        accuracyAnimation: true,
-        bearingRenderMode: BearingRenderMode.gps,
-      );
     } on Exception {
       _mostrarMensaje('No se pudo obtener tu ubicación. Inténtalo de nuevo.');
     }
+  }
+
+  /// Actualiza el marcador, fija el centro del mapa local una sola vez
+  /// y acerca la cámara si el modo "seguir" está activo.
+  void _aplicarPosicion(geo.Position posicion) {
+    if (!mounted) return;
+    final fijarCentro = !_centroFijado;
+    setState(() {
+      _posicion = posicion;
+      if (fijarCentro) {
+        _centroLon = posicion.longitude;
+        _centroLat = posicion.latitude;
+        _centroFijado = true;
+      }
+    });
+    if (_siguiendo) _centrarEn(posicion);
+  }
+
+  /// Mueve la cámara hasta [posicion] conservando el zoom elegido por el usuario.
+  Future<void> _centrarEn(geo.Position posicion) async {
+    final controller = _mapController;
+    if (controller == null) return;
+    await controller.animateCamera(
+      center: Geographic(lon: posicion.longitude, lat: posicion.latitude),
+      zoom: controller.camera?.zoom ?? 16,
+      nativeDuration: const Duration(milliseconds: 500),
+    );
   }
 
   /// Muestra las fuentes de mapa gratuitas y aplica la selección.
@@ -328,24 +367,21 @@ class _MapScreenState extends State<MapScreen> {
           initStyle:
               proveedoresMapa.firstWhere((p) => p.id == _proveedor).style ??
               MapaLocal.style,
-          initCenter: Geographic(
-            lon: _posicion?.longitude ?? MapaLocal.centroPorDefectoLon,
-            lat: _posicion?.latitude ?? MapaLocal.centroPorDefectoLat,
-          ),
+          initCenter: Geographic(lon: _centroLon, lat: _centroLat),
           initZoom: 16,
           minZoom: 3,
         ),
         layers: _proveedor == ProveedorMapaId.local
-            ? MapaLocal.layers(
-                lon: _posicion?.longitude ?? MapaLocal.centroPorDefectoLon,
-                lat: _posicion?.latitude ?? MapaLocal.centroPorDefectoLat,
-              )
+            ? MapaLocal.layers(lon: _centroLon, lat: _centroLat)
             : <Layer>[],
         onMapCreated: (controller) {
           _mapController = controller;
-          if (_ubicacionSolicitada) return;
-          _ubicacionSolicitada = true;
-          _ubicar();
+          if (_posicionStream != null) {
+            // El mapa se recreó al cambiar de fuente: volver a centrar.
+            if (_posicion != null) _centrarEn(_posicion!);
+          } else {
+            _ubicar();
+          }
         },
         children: [
           // Indicador anclado a la posición geográfica (cambia con el skin).
@@ -367,7 +403,7 @@ class _MapScreenState extends State<MapScreen> {
             Positioned(
               top: 16,
               left: 16,
-              right: 16,
+              right: 72,
               child: _Aviso(texto: _mensaje!),
             ),
           // Versión de la app, arriba del botón de fuentes y sin capturar toques.
@@ -394,26 +430,49 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
           ),
+          if (_mensaje == null)
+            Positioned(
+              top: 16,
+              left: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xCC10182B),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0x6600E5FF)),
+                ),
+                child: Text(
+                  proveedoresMapa
+                      .firstWhere((p) => p.id == _proveedor)
+                      .nombre
+                      .toUpperCase(),
+                  style: const TextStyle(
+                    color: Color(0xFF00E5FF),
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          // Botón para activar/desactivar que la cámara siga al usuario.
           Positioned(
             top: 16,
-            left: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: const Color(0xCC10182B),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0x6600E5FF)),
-              ),
-              child: Text(
-                proveedoresMapa
-                    .firstWhere((p) => p.id == _proveedor)
-                    .nombre
-                    .toUpperCase(),
-                style: const TextStyle(
-                  color: Color(0xFF00E5FF),
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
+            right: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'seguir',
+              backgroundColor: const Color(0xCC10182B),
+              foregroundColor: _siguiendo
+                  ? const Color(0xFF00E5FF)
+                  : const Color(0xFF8FA3BF),
+              onPressed: () {
+                setState(() => _siguiendo = !_siguiendo);
+                if (_siguiendo && _posicion != null) _centrarEn(_posicion!);
+              },
+              tooltip: _siguiendo
+                  ? 'Dejar de seguir mi posición'
+                  : 'Seguir mi posición',
+              child: Icon(
+                _siguiendo ? Icons.gps_fixed : Icons.gps_not_fixed,
               ),
             ),
           ),
