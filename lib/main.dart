@@ -49,6 +49,8 @@ class _MapScreenState extends State<MapScreen> {
   MapController? _mapController;
   StreamSubscription<geo.Position>? _posicionStream;
   String? _mensaje;
+  String? _etiquetaAccion;
+  VoidCallback? _accionAviso;
   geo.Position? _posicion;
   ProveedorMapaId _proveedor = ProveedorMapaId.cartoDark;
   bool _siguiendo = true;
@@ -99,7 +101,11 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Pide el permiso y arranca el seguimiento continuo de la posición.
   Future<void> _ubicar() async {
-    setState(() => _mensaje = null);
+    setState(() {
+      _mensaje = null;
+      _accionAviso = null;
+      _etiquetaAccion = null;
+    });
 
     final permiso = await Permission.locationWhenInUse.request();
     if (!permiso.isGranted) {
@@ -107,6 +113,8 @@ class _MapScreenState extends State<MapScreen> {
         permiso.isPermanentlyDenied
             ? 'Permiso denegado para siempre. Actívalo en Ajustes del sistema.'
             : 'Necesitamos tu permiso para mostrarte en el mapa.',
+        etiquetaAccion: permiso.isPermanentlyDenied ? 'Abrir ajustes' : null,
+        accion: permiso.isPermanentlyDenied ? openAppSettings : null,
       );
       return;
     }
@@ -363,9 +371,17 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  void _mostrarMensaje(String texto) {
+  void _mostrarMensaje(
+    String texto, {
+    String? etiquetaAccion,
+    VoidCallback? accion,
+  }) {
     if (!mounted) return;
-    setState(() => _mensaje = texto);
+    setState(() {
+      _mensaje = texto;
+      _etiquetaAccion = etiquetaAccion;
+      _accionAviso = accion;
+    });
   }
 
   /// Espera un momento después de escribir para no consultar en cada letra.
@@ -388,13 +404,17 @@ class _MapScreenState extends State<MapScreen> {
         _resultados = lugares;
         _buscando = false;
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
         _resultados = const [];
         _buscando = false;
-        _mensaje = 'No se pudo buscar. Revisa tu conexión a internet.';
       });
+      _mostrarMensaje(
+        error is BusquedaException
+            ? error.mensaje
+            : 'No se pudo buscar. Inténtalo de nuevo.',
+      );
     }
   }
 
@@ -405,6 +425,8 @@ class _MapScreenState extends State<MapScreen> {
       _destino = lugar;
       _resultados = const [];
       _mensaje = null;
+      _etiquetaAccion = null;
+      _accionAviso = null;
       _buscador.text = lugar.nombre;
     });
     _moverCamara(lugar.lon, lugar.lat);
@@ -632,7 +654,11 @@ class _MapScreenState extends State<MapScreen> {
               top: 68,
               left: 16,
               right: 72,
-              child: _Aviso(texto: _mensaje!),
+              child: _Aviso(
+                texto: _mensaje!,
+                etiquetaAccion: _etiquetaAccion,
+                accion: _accionAviso,
+              ),
             ),
           // Versión de la app, bajo el botón de seguir y sin capturar toques.
           const Positioned(
@@ -760,9 +786,11 @@ class _MapScreenState extends State<MapScreen> {
 
 /// Aviso sencillo cuando el permiso o el GPS no están disponibles.
 class _Aviso extends StatelessWidget {
-  const _Aviso({required this.texto});
+  const _Aviso({required this.texto, this.etiquetaAccion, this.accion});
 
   final String texto;
+  final String? etiquetaAccion;
+  final VoidCallback? accion;
 
   @override
   Widget build(BuildContext context) {
@@ -779,7 +807,25 @@ class _Aviso extends StatelessWidget {
         children: [
           const Icon(Icons.info_outline, color: Color(0xFF00E5FF)),
           const SizedBox(width: 10),
-          Expanded(child: Text(texto)),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(texto),
+                if (accion != null && etiquetaAccion != null)
+                  TextButton(
+                    onPressed: accion,
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF00E5FF),
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(etiquetaAccion!),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );

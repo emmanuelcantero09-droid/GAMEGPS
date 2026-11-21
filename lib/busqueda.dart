@@ -4,6 +4,7 @@
 /// a diferencia de Nominatim, que lo desaconseja.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -20,6 +21,16 @@ class Lugar {
   final String detalle;
   final double lon;
   final double lat;
+}
+
+/// Error con un mensaje listo para mostrar al usuario.
+class BusquedaException implements Exception {
+  const BusquedaException(this.mensaje);
+
+  final String mensaje;
+
+  @override
+  String toString() => mensaje;
 }
 
 /// Convierte un resultado de Photon en un [Lugar].
@@ -60,6 +71,16 @@ Lugar lugarDesdeJson(Map<String, dynamic> feature) {
   );
 }
 
+/// Construye la URL de consulta.
+///
+/// Photon solo admite `default`, `de`, `en` y `fr` en `lang`; enviar `es`
+/// devuelve HTTP 400. Por eso se omite el parámetro y se usa el idioma local.
+Uri uriBusqueda(String texto, {int limite = 5}) => Uri.https(
+      'photon.komoot.io',
+      '/api/',
+      {'q': texto.trim(), 'limit': '$limite'},
+    );
+
 /// Cliente de geocodificación.
 class ServicioBusqueda {
   static const Duration _tiempoEspera = Duration(seconds: 8);
@@ -69,28 +90,38 @@ class ServicioBusqueda {
     final consulta = texto.trim();
     if (consulta.length < 3) return const [];
 
-    final uri = Uri.https('photon.komoot.io', '/api/', {
-      'q': consulta,
-      'limit': '$limite',
-      'lang': 'es',
-    });
-
+    final uri = uriBusqueda(consulta, limite: limite);
     final cliente = HttpClient()
       ..userAgent = 'GAMEGPS/0.1 (Android; OpenStreetMap)';
+
     try {
       final peticion = await cliente.getUrl(uri).timeout(_tiempoEspera);
       final respuesta = await peticion.close().timeout(_tiempoEspera);
       if (respuesta.statusCode != 200) {
-        throw HttpException('HTTP ${respuesta.statusCode}', uri: uri);
+        throw BusquedaException(
+          'El servicio de lugares devolvió un error. Inténtalo de nuevo.',
+        );
       }
       final cuerpo = await respuesta.transform(utf8.decoder).join();
       final datos = jsonDecode(cuerpo) as Map<String, dynamic>;
-      final features = (datos['features'] as List<dynamic>? ?? []);
+      final features = datos['features'] as List<dynamic>? ?? [];
 
       return features
           .whereType<Map<String, dynamic>>()
           .map(lugarDesdeJson)
           .toList(growable: false);
+    } on SocketException {
+      throw const BusquedaException(
+        'Sin conexión a internet. Revisa tu WiFi o datos móviles.',
+      );
+    } on TimeoutException {
+      throw const BusquedaException(
+        'La búsqueda tardó demasiado. Inténtalo de nuevo.',
+      );
+    } on FormatException {
+      throw const BusquedaException(
+        'El servicio devolvió una respuesta inesperada.',
+      );
     } finally {
       cliente.close();
     }

@@ -22,6 +22,15 @@ void main() {
     expect(lugar.lon, closeTo(-3.7035, 0.0001));
   });
 
+  test('la consulta no envía un idioma que Photon no acepta', () {
+    final uri = uriBusqueda('  Madrid  ');
+
+    expect(uri.host, 'photon.komoot.io');
+    expect(uri.queryParameters['q'], 'Madrid');
+    expect(uri.queryParameters['limit'], '5');
+    expect(uri.queryParameters.containsKey('lang'), isFalse);
+  });
+
   test('usa la calle cuando el resultado no tiene nombre', () {
     final lugar = lugarDesdeJson({
       'properties': {'street': 'Calle Gran Vía', 'city': 'Madrid'},
