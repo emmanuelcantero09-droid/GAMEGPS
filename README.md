@@ -21,22 +21,32 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 1. ✅ Mapa interactivo.
 2. ✅ Mapa local propio (sin internet, sin API key y sin permisos).
 3. ✅ Ubicación del dispositivo con permiso y seguimiento en tiempo real (el indicador se mueve contigo y la cámara te sigue; puedes desactivarlo con el botón GPS).
-4. Acercar / alejar.
-5. Marcadores personalizados.
-6. Ubicaciones favoritas.
-7. ✅ Catálogo de skins para el indicador de posición.
-8. ✅ Logo propio gamer/GPS.
-9. Personalización de colores y apariencia.
-10. Rutas y navegación (futuras versiones).
+4. ✅ Barra de búsqueda de lugares reales (OpenStreetMap vía Photon, sin API key): marcador, coordenadas y distancia desde ti.
+5. Acercar / alejar.
+6. Marcadores personalizados.
+7. Ubicaciones favoritas.
+8. ✅ Catálogo de skins para el indicador de posición.
+9. ✅ Logo propio gamer/GPS.
+10. Personalización de colores y apariencia.
+11. Rutas y navegación (futuras versiones).
 
 ## Modos de mapa
 
-- **Mapa local** (predeterminado): calles, manzanas, parques y marcador generados en
+- **CARTO Dark** (predeterminado): calles reales de OpenStreetMap con estilo oscuro, sin API key.
+- **Mapa local** (opcional): calles, manzanas, parques y marcador generados en
   `lib/mapa_local.dart` con GeoJSON embebido. No descarga teselas, no usa API key y
-  funciona en modo avión. Se alterna con el botón ⚡ / 🌐 de la pantalla.
-- **Fuentes online**: el botón de **capas** de la izquierda abre un selector con **CARTO Dark**,
-  **OpenStreetMap**, **OSM HOT** y **OpenTopoMap**. Todas son gratuitas, sin API key y
-  **ninguna usa Google Maps**. Requieren conexión.
+  funciona en modo avión. Se alterna con el botón de **capas** de la izquierda.
+- **Otras fuentes online**: el selector incluye **OpenStreetMap**, **OSM HOT** y
+  **OpenTopoMap**. Todas son gratuitas, sin API key y **ninguna usa Google Maps**. Requieren conexión.
+
+## Búsqueda de lugares
+
+La barra superior consulta **Photon** (`photon.komoot.io`), un geocodificador libre basado en
+datos de OpenStreetMap. No necesita API key, no envía tu ubicación y espera 500 ms tras
+escribir para no consultar en cada letra. Al elegir un resultado se coloca un marcador
+rosa, se abre la cámara y se muestra la distancia en línea recta desde tu posición.
+Los resultados se analizan en `lib/busqueda.dart` y se prueban sin internet en
+`test/busqueda_test.dart`.
 
 El skin elegido y la fuente de mapa se guardan con `shared_preferences` y se restauran
 al reiniciar la app.

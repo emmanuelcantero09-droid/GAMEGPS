@@ -2,6 +2,8 @@
     <!-- Ubicación solo mientras la app está en uso (privacidad: sin acceso en segundo plano). -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Necesario para teselas, búsqueda de lugares y futuras rutas. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="GAME GPS"
         android:name="${applicationName}"
