@@ -2,7 +2,7 @@
 
 Aplicación de navegación GPS para Android con una interfaz futurista inspirada en videojuegos modernos, construida con Flutter.
 
-> Estado actual: **app Flutter en desarrollo**. Ya funcionan el mapa interactivo oscuro (1) y la ubicación del dispositivo con permiso (2).
+> Estado actual: **app Flutter en desarrollo**. Funcionan el mapa interactivo, la ubicación en tiempo real, la búsqueda cercana, el inventario de skins y el cálculo de rutas personalizables.
 
 > Versión actual: **0.1.0** (build 1). Se muestra en la esquina inferior izquierda del mapa.
 
@@ -21,14 +21,14 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 1. ✅ Mapa interactivo.
 2. ✅ Mapa local propio (sin internet, sin API key y sin permisos).
 3. ✅ Ubicación del dispositivo con permiso y seguimiento en tiempo real (el indicador se mueve contigo y la cámara te sigue; puedes desactivarlo con el botón GPS). El flujo continuo no usa `timeLimit` y actualiza cada 2 s aunque estés quieto, para que no aparezca un aviso falso de "señal perdida". Si hay un error real, la app reintenta automáticamente cada 2, 4, 6 y 8 segundos; tras 4 intentos ofrece un botón **Reintentar**. Si el permiso fue denegado permanentemente, el aviso incluye **Abrir ajustes**.
-4. ✅ Barra de búsqueda de lugares reales (OpenStreetMap vía Photon, sin API key): marcador, coordenadas y distancia desde ti.
+4. ✅ Barra de búsqueda de lugares reales (OpenStreetMap vía Photon, sin API key): marcador, coordenadas y distancia desde ti. Al elegir un resultado se calcula automáticamente cómo llegar.
 5. Acercar / alejar.
 6. Marcadores personalizados.
 7. Ubicaciones favoritas.
 8. ✅ Catálogo de skins para el indicador de posición, con opción de subir diseños propios desde la galería (inventario persistente).
 9. ✅ Logo propio gamer/GPS.
 10. Personalización de colores y apariencia.
-11. Rutas y navegación (futuras versiones).
+11. ✅ Cálculo de rutas desde tu posición con OSRM/OpenStreetMap, personalizables (modo, color, grosor, idioma y unidades). La navegación guiada con voz queda para futuras versiones.
 
 ## Modos de mapa
 
@@ -50,6 +50,25 @@ Los resultados se analizan en `lib/busqueda.dart` y se prueban sin internet en
 
 El skin elegido y la fuente de mapa se guardan con `shared_preferences` y se restauran
 al reiniciar la app.
+
+## Cómo llegar
+
+Al tocar un resultado de la búsqueda se calcula una ruta desde tu posición hasta ese punto. Se usa
+**OSRM** sin API key: el servidor público para coche y los servidores de OpenStreetMap para ir a pie
+o en bicicleta (`lib/rutas.dart`). La línea se dibuja sobre cualquier fuente de mapa
+(`lib/capa_ruta.dart`) y la cámara encuadra el recorrido completo.
+
+El botón **Personalizar** del panel del destino (o el icono 🎚️ junto a las capas) abre un panel para elegir:
+
+- **Modo de viaje:** coche, a pie o bicicleta.
+- **Color y grosor** de la línea dibujada.
+- **Idioma** de las instrucciones (español o inglés).
+- **Unidades** de distancia (metros o kilómetros).
+
+Las preferencias se guardan en el teléfono y la ruta se recalcula al aplicarlas. El panel muestra
+distancia total, duración estimada y las instrucciones paso a paso. Las respuestas antiguas se
+descartan mediante un número de generación, igual que en la búsqueda, para que una ruta anterior
+no sobrescriba la última.
 
 ## Skins del indicador
 
@@ -82,7 +101,7 @@ Los detalles están en [`docs/ENTORNO.md`](docs/ENTORNO.md).
 
 ## Privacidad
 
-La ubicación del usuario solo se solicitará con permiso explícito y se usará en el dispositivo. No se almacenarán coordenadas personales en el repositorio ni se enviarán a servicios externos sin consentimiento.
+La ubicación del usuario solo se solicita con permiso explícito y se usa en el dispositivo. No se almacenan coordenadas personales en el repositorio ni se guarda un histórico de viajes. Para buscar lugares y calcular rutas se envían coordenadas puntuales a Photon y a OSRM/OpenStreetMap (sin cuenta ni API key). Los diseños propios y las preferencias solo viven en tu teléfono.
 
 ## Recursos
 
