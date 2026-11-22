@@ -15,16 +15,37 @@ class Skin {
     required this.nombre,
     required this.descripcion,
     this.rutaImagen,
+    this.asset,
+    this.color,
   });
 
   final String id;
   final String nombre;
   final String descripcion;
   final String? rutaImagen;
+  final String? asset;
+  final Color? color;
 
   bool get esPropio => rutaImagen != null;
 
   Widget build({required bool seleccionado}) {
+    final imagenAsset = asset;
+    if (imagenAsset != null) {
+      return ClipOval(
+        child: ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            color ?? const Color(0xFF00E5FF),
+            BlendMode.srcIn,
+          ),
+          child: Image.asset(
+            imagenAsset,
+            width: 56,
+            height: 56,
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    }
     final ruta = rutaImagen;
     if (ruta != null) {
       return ClipOval(

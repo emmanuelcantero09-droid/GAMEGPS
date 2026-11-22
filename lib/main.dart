@@ -14,8 +14,10 @@ import 'capa_ruta.dart';
 import 'inventario.dart';
 import 'mapa_local.dart';
 import 'mapas.dart';
+import 'puntos.dart';
 import 'rutas.dart';
 import 'skins.dart';
+import 'tienda.dart';
 
 void main() => runApp(const GameGpsApp());
 
@@ -65,6 +67,8 @@ class _MapScreenState extends State<MapScreen> {
   String? _etiquetaAccion;
   VoidCallback? _accionAviso;
   geo.Position? _posicion;
+  geo.Position? _ultimaPosicionPuntos;
+  Puntos _puntos = const Puntos();
   ProveedorMapaId _proveedor = ProveedorMapaId.cartoDark;
   bool _siguiendo = true;
   bool _centroFijado = false;
@@ -72,11 +76,14 @@ class _MapScreenState extends State<MapScreen> {
   double _centroLat = MapaLocal.centroPorDefectoLat;
   String _skin = SkinId.clasico.name;
   List<DisenoPropio> _disenosPropios = const [];
+  List<String> _comprados = const [];
   SharedPreferences? _prefs;
 
-  /// Skins incluidos más los que el usuario subió a su inventario.
+  /// Skins incluidos, comprados en la tienda y subidos por el usuario.
   List<Skin> get _skinsDisponibles => [
         ...skins,
+        for (final articulo in tiendaSkins)
+          if (_comprados.contains(articulo.id)) articulo.skin,
         for (final diseno in _disenosPropios)
           Skin(
             id: diseno.id,
@@ -141,12 +148,18 @@ class _MapScreenState extends State<MapScreen> {
       color: prefs.getInt('ruta_color') ?? 0xFF00E5FF,
       grosor: prefs.getInt('ruta_grosor') ?? 5,
     );
+    final puntos = Puntos.cargar(prefs).registrarDia(DateTime.now());
+    final comprados = InventarioTienda.cargar(prefs);
+    await puntos.guardar(prefs);
+    if (!mounted) return;
     setState(() {
       _prefs = prefs;
       _disenosPropios = disenos;
+      _comprados = comprados;
       if (nombre != null) _skin = nombre;
       if (proveedorGuardado != null) _proveedor = proveedorGuardado;
       _opciones = opciones;
+      _puntos = puntos;
     });
   }
 
@@ -287,6 +300,42 @@ class _MapScreenState extends State<MapScreen> {
     _reintentando = false;
     _intentosGps = 0;
     final fijarCentro = !_centroFijado;
+
+    // Puntos por distancia real recorrida, ignorando saltos bruscos del GPS.
+    final anterior = _ultimaPosicionPuntos;
+    _ultimaPosicionPuntos = posicion;
+    var puntos = _puntos;
+    if (anterior != null) {
+      final metros = geo.Geolocator.distanceBetween(
+        anterior.latitude,
+        anterior.longitude,
+        posicion.latitude,
+        posicion.longitude,
+      );
+      if (metros > 0 && metros < 100) puntos = puntos.sumarDistancia(metros);
+    }
+
+    // Puntos por llegar al destino, una sola vez por lugar.
+    var llegadaNueva = false;
+    final destino = _destino;
+    if (destino != null) {
+      const radioLlegada = 30.0;
+      final distancia = geo.Geolocator.distanceBetween(
+        posicion.latitude,
+        posicion.longitude,
+        destino.lat,
+        destino.lon,
+      );
+      if (distancia < radioLlegada) {
+        final clave =
+            '${destino.lat.toStringAsFixed(4)},${destino.lon.toStringAsFixed(4)}';
+        final conLlegada = puntos.registrarLlegada(clave);
+        if (conLlegada.saldo > puntos.saldo) llegadaNueva = true;
+        puntos = conLlegada;
+      }
+    }
+
+    final ganados = puntos.saldo - _puntos.saldo;
     setState(() {
       if (_avisoEsGps) {
         _mensaje = null;
@@ -295,12 +344,20 @@ class _MapScreenState extends State<MapScreen> {
         _avisoEsGps = false;
       }
       _posicion = posicion;
+      _puntos = puntos;
       if (fijarCentro) {
         _centroLon = posicion.longitude;
         _centroLat = posicion.latitude;
         _centroFijado = true;
       }
     });
+    if (ganados > 0) {
+      final prefs = _prefs;
+      if (prefs != null) unawaited(puntos.guardar(prefs));
+    }
+    if (llegadaNueva) {
+      _mostrarMensaje('¡Llegaste al destino! +${Puntos.puntosPorLlegada} puntos.');
+    }
     if (_siguiendo) {
       _moverCamara(posicion.longitude, posicion.latitude);
     }
@@ -378,6 +435,165 @@ class _MapScreenState extends State<MapScreen> {
       setState(() => _proveedor = elegido);
       await _prefs?.setString('proveedor_mapa', elegido.name);
     }
+  }
+
+  /// Muestra la tienda de skins y permite comprarlos con los puntos ganados.
+  Future<void> _abrirTienda() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF0B1220),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, actualizarHoja) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Tienda de skins',
+                        style: TextStyle(
+                          color: Color(0xFF00E5FF),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0x3326A8FF),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.star,
+                            size: 14,
+                            color: Color(0xFFFFD54F),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${_puntos.saldo}',
+                            style: const TextStyle(
+                              color: Color(0xFFFFD54F),
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Ganá puntos caminando, llegando a destinos y por tu racha diaria.',
+                  style: TextStyle(color: Color(0xFF8FA3BF), fontSize: 12),
+                ),
+                const SizedBox(height: 14),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: tiendaSkins.length,
+                    itemBuilder: (context, index) {
+                      final articulo = tiendaSkins[index];
+                      final comprado = _comprados.contains(articulo.id);
+                      final alcanza = _puntos.saldo >= articulo.precio;
+                      return Card(
+                        color: const Color(0xFF10182B),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: ListTile(
+                          leading: articulo.skin.build(seleccionado: false),
+                          title: Text(
+                            articulo.nombre,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${articulo.descripcion} · ${articulo.precio} puntos',
+                            style: const TextStyle(
+                              color: Color(0xFF8FA3BF),
+                              fontSize: 11,
+                            ),
+                          ),
+                          trailing: comprado
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: Color(0xFF00FFA3),
+                                )
+                              : FilledButton(
+                                  onPressed: alcanza
+                                      ? () =>
+                                          _comprarSkin(articulo, actualizarHoja)
+                                      : null,
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: const Color(0xFF7B2BFF),
+                                    disabledBackgroundColor:
+                                        const Color(0xFF222C42),
+                                  ),
+                                  child: Text(
+                                    alcanza
+                                        ? 'Comprar'
+                                        : 'Faltan ${articulo.precio - _puntos.saldo}',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
+                                ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Descuenta los puntos, guarda la compra y refresca la hoja de la tienda.
+  Future<void> _comprarSkin(
+    SkinTienda articulo,
+    StateSetter actualizarHoja,
+  ) async {
+    if (_comprados.contains(articulo.id)) return;
+    final nuevosPuntos = _puntos.gastar(articulo.precio);
+    if (nuevosPuntos.saldo == _puntos.saldo) return;
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    final nuevosComprados = [..._comprados, articulo.id];
+    await Future.wait([
+      InventarioTienda.guardar(prefs, nuevosComprados),
+      nuevosPuntos.guardar(prefs),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _prefs = prefs;
+      _puntos = nuevosPuntos;
+      _comprados = nuevosComprados;
+    });
+    actualizarHoja(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${articulo.nombre} comprado. Ya podés usarlo en 🎨.'),
+        backgroundColor: const Color(0xFF10182B),
+      ),
+    );
   }
 
   /// Muestra el inventario de skins y aplica la selección.
@@ -1338,6 +1554,50 @@ class _MapScreenState extends State<MapScreen> {
                     color: Color(0xFF00E5FF),
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          if (_mensaje == null && _resultados.isEmpty && !_buscando)
+            Positioned(
+              top: 102,
+              left: 16,
+              child: GestureDetector(
+                onTap: _abrirTienda,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xCC10182B),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0x99FFD54F)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.star,
+                        size: 14,
+                        color: Color(0xFFFFD54F),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        '${_puntos.saldo} puntos',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD54F),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.shopping_cart,
+                        size: 13,
+                        color: Color(0xFFFFD54F),
+                      ),
+                    ],
                   ),
                 ),
               ),
