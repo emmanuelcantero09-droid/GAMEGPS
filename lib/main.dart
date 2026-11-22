@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:image_picker/image_picker.dart' as picker;
@@ -69,6 +70,10 @@ class _MapScreenState extends State<MapScreen> {
   VoidCallback? _accionAviso;
   geo.Position? _posicion;
   geo.Position? _ultimaPosicionPuntos;
+
+  /// Recorrido real dibujado detrás del indicador (máximo 600 puntos).
+  List<List<double>> _rastro = const [];
+  bool _animacionLlegada = false;
   Puntos _puntos = const Puntos();
   ProveedorMapaId _proveedor = ProveedorMapaId.cartoDark;
   bool _siguiendo = true;
@@ -308,6 +313,21 @@ class _MapScreenState extends State<MapScreen> {
     _intentosGps = 0;
     final fijarCentro = !_centroFijado;
 
+    // Rastro de pasos reales: solo añadimos al movernos al menos 2 m.
+    final rastro = List<List<double>>.from(_rastro);
+    final ultimoPunto = rastro.isEmpty ? null : rastro.last;
+    if (ultimoPunto == null ||
+        geo.Geolocator.distanceBetween(
+              ultimoPunto[1],
+              ultimoPunto[0],
+              posicion.latitude,
+              posicion.longitude,
+            ) >
+            2) {
+      rastro.add([posicion.longitude, posicion.latitude]);
+      if (rastro.length > 600) rastro.removeAt(0);
+    }
+
     // Puntos por distancia real recorrida, ignorando saltos bruscos del GPS.
     final anterior = _ultimaPosicionPuntos;
     _ultimaPosicionPuntos = posicion;
@@ -356,6 +376,8 @@ class _MapScreenState extends State<MapScreen> {
       }
       _posicion = posicion;
       _puntos = puntos;
+      _rastro = rastro;
+      if (llegadaNueva) _animacionLlegada = true;
       if (fijarCentro) {
         _centroLon = posicion.longitude;
         _centroLat = posicion.latitude;
@@ -1064,6 +1086,14 @@ class _MapScreenState extends State<MapScreen> {
       _etiquetaAccion = null;
       _accionAviso = null;
       _buscador.text = lugar.nombre;
+      // Cada destino empieza su propio rastro desde donde estás ahora.
+      final actual = _posicion;
+      _rastro = actual == null
+          ? const []
+          : [
+              [actual.longitude, actual.latitude],
+            ];
+      _animacionLlegada = false;
     });
     unawaited(_registrarBusquedaYRetos());
     _moverCamara(lugar.lon, lugar.lat);
@@ -1098,6 +1128,7 @@ class _MapScreenState extends State<MapScreen> {
       _ruta = null;
       _calculandoRuta = false;
       _buscando = false;
+      _rastro = const [];
     });
   }
 
@@ -1620,6 +1651,7 @@ class _MapScreenState extends State<MapScreen> {
         layers: [
           if (_proveedor == ProveedorMapaId.local)
             ...MapaLocal.layers(lon: _centroLon, lat: _centroLat),
+          if (_rastro.length > 1) ...capasRastro(_rastro),
           if (_ruta != null)
             ...capasRuta(
               _ruta!,
@@ -1849,6 +1881,14 @@ class _MapScreenState extends State<MapScreen> {
               child: const Icon(Icons.my_location),
             ),
           ),
+          if (_animacionLlegada)
+            Positioned.fill(
+              child: _AnimacionLlegada(
+                onFin: () {
+                  if (mounted) setState(() => _animacionLlegada = false);
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -1898,6 +1938,97 @@ class _Aviso extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Animación breve al llegar a un destino: ondas y destellos de colores.
+class _AnimacionLlegada extends StatefulWidget {
+  const _AnimacionLlegada({required this.onFin});
+
+  final VoidCallback onFin;
+
+  @override
+  State<_AnimacionLlegada> createState() => _AnimacionLlegadaState();
+}
+
+class _AnimacionLlegadaState extends State<_AnimacionLlegada>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _control;
+
+  @override
+  void initState() {
+    super.initState();
+    _control = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1700),
+    );
+    _control.forward().whenComplete(widget.onFin);
+  }
+
+  @override
+  void dispose() {
+    _control.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _control,
+        builder: (context, _) {
+          final t = _control.value;
+          final alpha = (255 * (1 - t)).round().clamp(0, 255).toInt();
+          final tinta = Color.fromARGB(alpha, 0, 255, 163);
+
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              Transform.scale(
+                scale: 0.45 + t * 1.5,
+                child: Container(
+                  width: 130,
+                  height: 130,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: tinta, width: 4),
+                  ),
+                ),
+              ),
+              for (var i = 0; i < 8; i++)
+                Transform.translate(
+                  offset: Offset(
+                    math.cos(i * math.pi / 4) * 110 * t,
+                    math.sin(i * math.pi / 4) * 110 * t,
+                  ),
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: i.isEven
+                          ? Color.fromARGB(alpha, 255, 213, 79)
+                          : Color.fromARGB(alpha, 0, 229, 255),
+                    ),
+                  ),
+                ),
+              Opacity(
+                opacity: (1 - t * 1.6).clamp(0.0, 1.0),
+                child: const Text(
+                  '¡Llegaste!',
+                  style: TextStyle(
+                    color: Color(0xFF00FFA3),
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    shadows: [Shadow(color: Color(0xFF05070F), blurRadius: 10)],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

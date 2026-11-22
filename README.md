@@ -32,6 +32,7 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 12. ✅ Puntos por distancia real recorrida, por llegar al destino y por racha diaria.
 13. ✅ Tienda de skins: se compran con puntos y pasan a tu inventario.
 14. ✅ Retos diarios, de distancia total y de destinos, con progreso y puntos automáticos.
+15. ✅ Rastro del recorrido real detrás del indicador y animación al llegar al destino.
 
 ## Puntos, retos y tienda
 
@@ -55,6 +56,15 @@ La tienda incluye 8 diseños de [game-icons.net](https://game-icons.net/) bajo l
 **CC BY 3.0**: Dragón (Faithtoken), Androide clásico y Astronauta (Lorc), Ninja (DarkZaitzev),
 Medusa y Rey (Cathelineau), Mecha (Delapouite) y Cohete (Sbed). Los PNG se teñen con el color
 de cada skin dentro de la app.
+
+## Indicador, rastro y llegada
+
+El indicador sigue tu GPS en tiempo real y deja detrás una línea cian con el
+**recorrido real** que haces (se guardan hasta 600 puntos y solo se añade uno
+cuando te mueves al menos 2 m). Al elegir un destino, el rastro empieza de cero
+desde tu posición actual; al borrar la búsqueda también se limpia.
+Al llegar a menos de 30 m del destino aparece una animación de ondas y destellos
+con el texto **¡Llegaste!** (dura 1,7 s y no bloquea el mapa).
 
 ## Modos de mapa
 
