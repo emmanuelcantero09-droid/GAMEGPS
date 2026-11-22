@@ -99,6 +99,10 @@ app en `assets/logo/app_icon.png`.
 
 Los detalles están en [`docs/ENTORNO.md`](docs/ENTORNO.md).
 
+Para compilar: `flutter build apk --debug` o `flutter build apk --release`. El release usa
+`android/app/proguard-rules.pro` para ignorar las referencias a Google Play Services de
+`geolocator`, que nunca se ejecutan porque la app usa el `LocationManager` nativo y excluye GMS.
+
 ## Privacidad
 
 La ubicación del usuario solo se solicita con permiso explícito y se usa en el dispositivo. No se almacenan coordenadas personales en el repositorio ni se guarda un histórico de viajes. Para buscar lugares y calcular rutas se envían coordenadas puntuales a Photon y a OSRM/OpenStreetMap (sin cuenta ni API key). Los diseños propios y las preferencias solo viven en tu teléfono.
