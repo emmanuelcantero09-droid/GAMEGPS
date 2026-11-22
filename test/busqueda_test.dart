@@ -31,6 +31,21 @@ void main() {
     expect(uri.queryParameters.containsKey('lang'), isFalse);
   });
 
+  test('la consulta sesga los resultados hacia mi ubicación', () {
+    final uri = uriBusqueda('parque', lat: 40.4168, lon: -3.7038);
+
+    expect(uri.queryParameters['lat'], '40.416800');
+    expect(uri.queryParameters['lon'], '-3.703800');
+    expect(uri.queryParameters.containsKey('lang'), isFalse);
+  });
+
+  test('sin ubicación no envía lat ni lon', () {
+    final uri = uriBusqueda('parque');
+
+    expect(uri.queryParameters.containsKey('lat'), isFalse);
+    expect(uri.queryParameters.containsKey('lon'), isFalse);
+  });
+
   test('usa la calle cuando el resultado no tiene nombre', () {
     final lugar = lugarDesdeJson({
       'properties': {'street': 'Calle Gran Vía', 'city': 'Madrid'},

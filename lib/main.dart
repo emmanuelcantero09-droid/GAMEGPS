@@ -47,6 +47,7 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   static const int _maxIntentosGps = 4;
+  static const double _radioBusquedaMetros = 100000;
 
   MapController? _mapController;
   StreamSubscription<geo.Position>? _posicionStream;
@@ -68,6 +69,7 @@ class _MapScreenState extends State<MapScreen> {
 
   final TextEditingController _buscador = TextEditingController();
   Timer? _busquedaTimer;
+  int _busquedaGeneracion = 0;
   List<Lugar> _resultados = const [];
   bool _buscando = false;
   Lugar? _destino;
@@ -448,25 +450,50 @@ class _MapScreenState extends State<MapScreen> {
   /// Espera un momento después de escribir para no consultar en cada letra.
   void _alBuscar(String texto) {
     _busquedaTimer?.cancel();
+    // Invalida cualquier respuesta que estuviera en camino: si el usuario
+    // escribió otra cosa, un resultado viejo ya no debe pintarse.
+    _busquedaGeneracion++;
     setState(() => _resultados = const []);
     if (texto.trim().length < 3) return;
     _busquedaTimer = Timer(
       const Duration(milliseconds: 500),
-      () => _ejecutarBusqueda(texto),
+      () => _ejecutarBusqueda(texto, _busquedaGeneracion),
     );
   }
 
-  Future<void> _ejecutarBusqueda(String texto) async {
+  Future<void> _ejecutarBusqueda(String texto, int generacion) async {
     setState(() => _buscando = true);
     try {
-      final lugares = await ServicioBusqueda().buscar(texto);
-      if (!mounted) return;
+      final posicion = _posicion;
+      final lugares = await ServicioBusqueda().buscar(
+        texto,
+        lat: posicion?.latitude,
+        lon: posicion?.longitude,
+      );
+      if (!mounted || generacion != _busquedaGeneracion) return;
+      final cercanos = posicion == null
+          ? lugares
+          : lugares
+              .where(
+                (lugar) =>
+                    geo.Geolocator.distanceBetween(
+                      posicion.latitude,
+                      posicion.longitude,
+                      lugar.lat,
+                      lugar.lon,
+                    ) <=
+                _radioBusquedaMetros,
+              )
+              .toList();
       setState(() {
-        _resultados = lugares;
+        _resultados = cercanos;
         _buscando = false;
       });
+      if (cercanos.isEmpty && lugares.isNotEmpty) {
+        _mostrarMensaje('No hay resultados a menos de 100 km de ti.');
+      }
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || generacion != _busquedaGeneracion) return;
       setState(() {
         _resultados = const [];
         _buscando = false;
@@ -495,6 +522,7 @@ class _MapScreenState extends State<MapScreen> {
 
   void _limpiarBusqueda() {
     _busquedaTimer?.cancel();
+    _busquedaGeneracion++;
     setState(() {
       _buscador.clear();
       _resultados = const [];
@@ -581,7 +609,7 @@ class _MapScreenState extends State<MapScreen> {
                 style: const TextStyle(color: Colors.white, fontSize: 13),
               ),
               subtitle: Text(
-                lugar.detalle,
+                '${_distanciaAlDestino(lugar)} · ${lugar.detalle}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(

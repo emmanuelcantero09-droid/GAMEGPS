@@ -75,22 +75,46 @@ Lugar lugarDesdeJson(Map<String, dynamic> feature) {
 ///
 /// Photon solo admite `default`, `de`, `en` y `fr` en `lang`; enviar `es`
 /// devuelve HTTP 400. Por eso se omite el parámetro y se usa el idioma local.
-Uri uriBusqueda(String texto, {int limite = 5}) => Uri.https(
-      'photon.komoot.io',
-      '/api/',
-      {'q': texto.trim(), 'limit': '$limite'},
-    );
+/// Si se pasan [lat] y [lon], Photon prioriza lugares cercanos a ese punto.
+Uri uriBusqueda(
+  String texto, {
+  int limite = 5,
+  double? lat,
+  double? lon,
+}) {
+  final parametros = <String, String>{
+    'q': texto.trim(),
+    'limit': '$limite',
+  };
+  if (lat != null && lon != null) {
+    parametros['lat'] = lat.toStringAsFixed(6);
+    parametros['lon'] = lon.toStringAsFixed(6);
+  }
+  return Uri.https('photon.komoot.io', '/api/', parametros);
+}
 
 /// Cliente de geocodificación.
 class ServicioBusqueda {
   static const Duration _tiempoEspera = Duration(seconds: 8);
 
   /// Devuelve hasta [limite] lugares que coinciden con [texto].
-  Future<List<Lugar>> buscar(String texto, {int limite = 5}) async {
+  ///
+  /// [lat] y [lon] sesgan los resultados hacia tu ubicación.
+  Future<List<Lugar>> buscar(
+    String texto, {
+    int limite = 5,
+    double? lat,
+    double? lon,
+  }) async {
     final consulta = texto.trim();
     if (consulta.length < 3) return const [];
 
-    final uri = uriBusqueda(consulta, limite: limite);
+    final uri = uriBusqueda(
+      consulta,
+      limite: limite,
+      lat: lat,
+      lon: lon,
+    );
     final cliente = HttpClient()
       ..userAgent = 'GAMEGPS/0.1 (Android; OpenStreetMap)';
 
