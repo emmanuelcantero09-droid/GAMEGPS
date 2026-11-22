@@ -164,26 +164,38 @@ class _MapScreenState extends State<MapScreen> {
 
     // Fuerza el LocationManager de Android: así no dependemos de Google Play.
     // En Android 12+ usa el proveedor fusionado del sistema cuando está activo.
-    final ajustes = geo.AndroidSettings(
+    // La primera posición sí tiene límite: si no llega, avisamos al usuario.
+    final inicialAjustes = geo.AndroidSettings(
       forceLocationManager: true,
       accuracy: geo.LocationAccuracy.high,
       distanceFilter: 3,
       intervalDuration: const Duration(seconds: 2),
-      timeLimit: const Duration(seconds: 8),
+      timeLimit: const Duration(seconds: 10),
+    );
+
+    // El seguimiento continuo NO lleva timeLimit: geolocator cierra el stream
+    // con un TimeoutException si no llega un evento durante ese tiempo, y
+    // estando quieto no hay eventos porque distanceFilter es 3 m. Eso causaba
+    // el aviso falso de "señal perdida" cada pocos segundos.
+    final streamAjustes = geo.AndroidSettings(
+      forceLocationManager: true,
+      accuracy: geo.LocationAccuracy.high,
+      distanceFilter: 0,
+      intervalDuration: const Duration(seconds: 2),
     );
 
     try {
       // Solo esperamos la primera posición; en los reintentos ya tenemos una.
       if (_posicion == null) {
         final inicial = await geo.Geolocator.getCurrentPosition(
-          locationSettings: ajustes,
+          locationSettings: inicialAjustes,
         );
         _aplicarPosicion(inicial);
       }
 
       await _posicionStream?.cancel();
       _posicionStream = geo.Geolocator.getPositionStream(
-        locationSettings: ajustes,
+        locationSettings: streamAjustes,
       ).listen(
         _aplicarPosicion,
         onError: (_) => _falloGps('Se perdió la señal GPS.'),
