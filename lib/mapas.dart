@@ -1,8 +1,10 @@
 /// Fuentes de mapa gratuitas y sin API key. Ninguna pertenece a Google.
 library;
 
+import 'estilo_custom.dart';
+
 /// Identificador de la fuente elegida.
-enum ProveedorMapaId { local, cartoDark, osm, hot, topo }
+enum ProveedorMapaId { local, cartoDark, osm, hot, topo, custom }
 
 /// Descripción de una fuente de teselas o del mapa propio.
 class ProveedorMapa {
@@ -89,6 +91,12 @@ final List<ProveedorMapa> proveedoresMapa = [
     id: ProveedorMapaId.local,
     nombre: 'Propio · offline',
     detalle: 'Calles generadas por la app. Sin internet ni key.',
+  ),
+  const ProveedorMapa(
+    id: ProveedorMapaId.custom,
+    nombre: 'GAME GPS Custom',
+    detalle: 'Vectorial · colores propios · OpenFreeMap',
+    style: estiloGameGps,
   ),
   ProveedorMapa(
     id: ProveedorMapaId.cartoDark,

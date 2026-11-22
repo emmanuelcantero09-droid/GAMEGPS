@@ -27,11 +27,15 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 7. Ubicaciones favoritas.
 8. ✅ Catálogo de skins para el indicador de posición, con opción de subir diseños propios desde la galería (inventario persistente).
 9. ✅ Logo propio gamer/GPS.
-10. Personalización de colores y apariencia.
+10. ✅ Estilo de mapa propio con colores de GAME GPS (fondo azul noche, caminos cian, zonas verdes esmeralda).
 11. ✅ Cálculo de rutas desde tu posición con OSRM/OpenStreetMap, personalizables (modo, color, grosor, idioma y unidades). La navegación guiada con voz queda para futuras versiones.
 
 ## Modos de mapa
 
+- **GAME GPS Custom**: estilo vectorial propio (`lib/estilo_custom.dart`) con teselas de
+  **OpenFreeMap** y la paleta de la app aplicada a 111 capas: caminos cian, parques verdes,
+  agua azul, edificios gris azulado y etiquetas claras. Gratis, sin key ni registro.
+  Datos © OpenStreetMap, estilo © OpenFreeMap/OpenMapTiles (MIT). Requiere conexión.
 - **CARTO Dark** (predeterminado): calles reales de OpenStreetMap con estilo oscuro, sin API key.
 - **Mapa local** (opcional): calles, manzanas, parques y marcador generados en
   `lib/mapa_local.dart` con GeoJSON embebido. No descarga teselas, no usa API key y
