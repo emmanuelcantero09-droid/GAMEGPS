@@ -31,16 +31,25 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 11. ✅ Cálculo de rutas desde tu posición con OSRM/OpenStreetMap, personalizables (modo, color, grosor, idioma y unidades). La navegación guiada con voz queda para futuras versiones.
 12. ✅ Puntos por distancia real recorrida, por llegar al destino y por racha diaria.
 13. ✅ Tienda de skins: se compran con puntos y pasan a tu inventario.
+14. ✅ Retos diarios, de distancia total y de destinos, con progreso y puntos automáticos.
 
-## Puntos y tienda
+## Puntos, retos y tienda
 
-Tocando el contador **⭐ puntos 🛒** (esquina superior izquierda) se abre la tienda.
+Tocando el contador **⭐ puntos 🛒** (esquina superior izquierda) se abre la hoja con
+dos pestañas: **Tienda** y **Retos**. Los retos se cobran solos al alcanzar la meta.
 
 - **1 punto cada 100 m** caminados o corridos. Se descartan saltos bruscos del GPS
   (más de 100 m entre lecturas) para no sumar distancia falsa.
 - **15 puntos** por llegar a un destino (una sola vez por lugar, a menos de 30 m).
 - **5 puntos diarios** por abrir la app, con **5 extra cada 7 días consecutivos**.
-- Los saldos, las compras y la racha se guardan solo en tu teléfono.
+
+**Retos diarios** (se reinician cada día): caminar 500 m (+20), llegar a 1 destino (+10)
+y buscar 3 lugares (+10).
+
+**Metas totales** (una sola vez): 1/5/10 km recorridos (+15/+30/+50) y
+3/10/25 destinos distintos (+20/+50/+100).
+
+Los saldos, las compras, la racha y el progreso se guardan solo en tu teléfono.
 
 La tienda incluye 8 diseños de [game-icons.net](https://game-icons.net/) bajo licencia
 **CC BY 3.0**: Dragón (Faithtoken), Androide clásico y Astronauta (Lorc), Ninja (DarkZaitzev),

@@ -1,4 +1,4 @@
-/// Puntos de GAME GPS: se ganan caminando, llegando al destino y por racha diaria.
+/// Puntos de GAME GPS: se ganan caminando, llegando al destino, por racha y con retos.
 library;
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +9,10 @@ class Puntos {
   const Puntos({
     this.saldo = 0,
     this.metrosPendientes = 0,
+    this.metrosTotales = 0,
+    this.metrosHoy = 0,
+    this.destinosHoy = 0,
+    this.busquedasHoy = 0,
     this.racha = 0,
     this.ultimoDia = '',
     this.entregados = const [],
@@ -18,6 +22,10 @@ class Puntos {
     return Puntos(
       saldo: prefs.getInt('puntos_saldo') ?? 0,
       metrosPendientes: prefs.getDouble('puntos_metros') ?? 0,
+      metrosTotales: prefs.getDouble('puntos_metros_totales') ?? 0,
+      metrosHoy: prefs.getDouble('puntos_metros_hoy') ?? 0,
+      destinosHoy: prefs.getInt('puntos_destinos_hoy') ?? 0,
+      busquedasHoy: prefs.getInt('puntos_busquedas_hoy') ?? 0,
       racha: prefs.getInt('puntos_racha') ?? 0,
       ultimoDia: prefs.getString('puntos_dia') ?? '',
       entregados: prefs.getStringList('puntos_entregados') ?? const [],
@@ -27,20 +35,32 @@ class Puntos {
   /// Distancia que recorres con el GPS: 1 punto por cada 100 metros.
   static const double metrosPorPunto = 100;
 
-  /// Puntos por alcanzar un destino y por abrir la app cada día.
+  /// Puntos por llegar al destino y por abrir la app cada día.
   static const int puntosPorLlegada = 15;
   static const int puntosPorDia = 5;
   static const int bonusSemanal = 5;
 
   final int saldo;
   final double metrosPendientes;
+  final double metrosTotales;
+  final double metrosHoy;
+  final int destinosHoy;
+  final int busquedasHoy;
   final int racha;
   final String ultimoDia;
   final List<String> entregados;
 
+  /// Destinos distintos alcanzados desde que se instaló la app.
+  int get destinosDistintos =>
+      entregados.where((clave) => clave.startsWith('destino:')).length;
+
   Puntos _copiar({
     int? saldo,
     double? metrosPendientes,
+    double? metrosTotales,
+    double? metrosHoy,
+    int? destinosHoy,
+    int? busquedasHoy,
     int? racha,
     String? ultimoDia,
     List<String>? entregados,
@@ -48,6 +68,10 @@ class Puntos {
     return Puntos(
       saldo: saldo ?? this.saldo,
       metrosPendientes: metrosPendientes ?? this.metrosPendientes,
+      metrosTotales: metrosTotales ?? this.metrosTotales,
+      metrosHoy: metrosHoy ?? this.metrosHoy,
+      destinosHoy: destinosHoy ?? this.destinosHoy,
+      busquedasHoy: busquedasHoy ?? this.busquedasHoy,
       racha: racha ?? this.racha,
       ultimoDia: ultimoDia ?? this.ultimoDia,
       entregados: entregados ?? this.entregados,
@@ -59,12 +83,20 @@ class Puntos {
     if (metros <= 0) return this;
     final total = metrosPendientes + metros;
     final puntos = (total / metrosPorPunto).floor();
+    final nuevosTotales = metrosTotales + metros;
+    final nuevoHoy = metrosHoy + metros;
     if (puntos == 0) {
-      return _copiar(metrosPendientes: total);
+      return _copiar(
+        metrosPendientes: total,
+        metrosTotales: nuevosTotales,
+        metrosHoy: nuevoHoy,
+      );
     }
     return _copiar(
       saldo: saldo + puntos,
       metrosPendientes: total - puntos * metrosPorPunto,
+      metrosTotales: nuevosTotales,
+      metrosHoy: nuevoHoy,
     );
   }
 
@@ -74,8 +106,14 @@ class Puntos {
     return _copiar(saldo: saldo - cantidad);
   }
 
+  /// Entrega puntos de un reto una sola vez usando su clave.
+  Puntos marcarEntrega(String clave, int puntos) {
+    if (entregados.contains(clave)) return this;
+    return _copiar(saldo: saldo + puntos, entregados: [...entregados, clave]);
+  }
+
   /// Cuenta el día actual. Solo entrega puntos una vez por día y da un
-  /// bonus extra cada siete días consecutivos.
+  /// bonus extra cada siete días consecutivos. Los retos diarios se reinician.
   Puntos registrarDia(DateTime ahora) {
     final dia = _claveDia(ahora);
     if (dia == ultimoDia) return this;
@@ -99,6 +137,9 @@ class Puntos {
       racha: nuevaRacha,
       ultimoDia: dia,
       entregados: bonos,
+      metrosHoy: 0,
+      destinosHoy: 0,
+      busquedasHoy: 0,
     );
   }
 
@@ -108,14 +149,22 @@ class Puntos {
     if (entregados.contains(clave)) return this;
     return _copiar(
       saldo: saldo + puntosPorLlegada,
+      destinosHoy: destinosHoy + 1,
       entregados: [...entregados, clave],
     );
   }
+
+  /// Cuenta un lugar elegido en el buscador, para el reto diario.
+  Puntos registrarBusqueda() => _copiar(busquedasHoy: busquedasHoy + 1);
 
   /// Guarda el estado para conservarlo al cerrar la app.
   Future<void> guardar(SharedPreferences prefs) async {
     await prefs.setInt('puntos_saldo', saldo);
     await prefs.setDouble('puntos_metros', metrosPendientes);
+    await prefs.setDouble('puntos_metros_totales', metrosTotales);
+    await prefs.setDouble('puntos_metros_hoy', metrosHoy);
+    await prefs.setInt('puntos_destinos_hoy', destinosHoy);
+    await prefs.setInt('puntos_busquedas_hoy', busquedasHoy);
     await prefs.setInt('puntos_racha', racha);
     await prefs.setString('puntos_dia', ultimoDia);
     await prefs.setStringList('puntos_entregados', entregados);

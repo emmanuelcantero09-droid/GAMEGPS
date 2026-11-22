@@ -15,6 +15,7 @@ import 'inventario.dart';
 import 'mapa_local.dart';
 import 'mapas.dart';
 import 'puntos.dart';
+import 'retos.dart';
 import 'rutas.dart';
 import 'skins.dart';
 import 'tienda.dart';
@@ -81,17 +82,17 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Skins incluidos, comprados en la tienda y subidos por el usuario.
   List<Skin> get _skinsDisponibles => [
-        ...skins,
-        for (final articulo in tiendaSkins)
-          if (_comprados.contains(articulo.id)) articulo.skin,
-        for (final diseno in _disenosPropios)
-          Skin(
-            id: diseno.id,
-            nombre: diseno.nombre,
-            descripcion: 'Diseño propio',
-            rutaImagen: diseno.rutaImagen,
-          ),
-      ];
+    ...skins,
+    for (final articulo in tiendaSkins)
+      if (_comprados.contains(articulo.id)) articulo.skin,
+    for (final diseno in _disenosPropios)
+      Skin(
+        id: diseno.id,
+        nombre: diseno.nombre,
+        descripcion: 'Diseño propio',
+        rutaImagen: diseno.rutaImagen,
+      ),
+  ];
 
   final TextEditingController _buscador = TextEditingController();
   Timer? _busquedaTimer;
@@ -148,7 +149,9 @@ class _MapScreenState extends State<MapScreen> {
       color: prefs.getInt('ruta_color') ?? 0xFF00E5FF,
       grosor: prefs.getInt('ruta_grosor') ?? 5,
     );
-    final puntos = Puntos.cargar(prefs).registrarDia(DateTime.now());
+    final puntos = evaluarRetos(
+      Puntos.cargar(prefs).registrarDia(DateTime.now()),
+    ).puntos;
     final comprados = InventarioTienda.cargar(prefs);
     await puntos.guardar(prefs);
     if (!mounted) return;
@@ -164,7 +167,11 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   /// Devuelve el valor guardado de un enum, o el valor por defecto.
-  T _valorGuardado<T extends Enum>(List<T> valores, String? nombre, T porDefecto) {
+  T _valorGuardado<T extends Enum>(
+    List<T> valores,
+    String? nombre,
+    T porDefecto,
+  ) {
     if (nombre == null) return porDefecto;
     for (final valor in valores) {
       if (valor.name == nombre) return valor;
@@ -253,13 +260,13 @@ class _MapScreenState extends State<MapScreen> {
       }
 
       await _posicionStream?.cancel();
-      _posicionStream = geo.Geolocator.getPositionStream(
-        locationSettings: streamAjustes,
-      ).listen(
-        _aplicarPosicion,
-        onError: (_) => _falloGps('Se perdió la señal GPS.'),
-        onDone: () => _falloGps('Se cerró la señal GPS.'),
-      );
+      _posicionStream =
+          geo.Geolocator.getPositionStream(locationSettings: streamAjustes)
+              .listen(
+                _aplicarPosicion,
+                onError: (_) => _falloGps('Se perdió la señal GPS.'),
+                onDone: () => _falloGps('Se cerró la señal GPS.'),
+              );
     } on Exception {
       _falloGps('No se pudo obtener tu ubicación.');
     }
@@ -335,6 +342,10 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
 
+    // Retos que se completan al caminar o al llegar a un destino.
+    final evaluados = evaluarRetos(puntos);
+    puntos = evaluados.puntos;
+
     final ganados = puntos.saldo - _puntos.saldo;
     setState(() {
       if (_avisoEsGps) {
@@ -355,9 +366,15 @@ class _MapScreenState extends State<MapScreen> {
       final prefs = _prefs;
       if (prefs != null) unawaited(puntos.guardar(prefs));
     }
+    final avisos = <String>[];
     if (llegadaNueva) {
-      _mostrarMensaje('¡Llegaste al destino! +${Puntos.puntosPorLlegada} puntos.');
+      avisos.add('¡Llegaste! +${Puntos.puntosPorLlegada} pts');
     }
+    if (evaluados.nuevos.isNotEmpty) {
+      final nombres = evaluados.nuevos.map((r) => r.titulo).join(', ');
+      avisos.add('Reto: $nombres +${evaluados.ganados} pts');
+    }
+    if (avisos.isNotEmpty) _mostrarMensaje(avisos.join(' '));
     if (_siguiendo) {
       _moverCamara(posicion.longitude, posicion.latitude);
     }
@@ -447,123 +464,258 @@ class _MapScreenState extends State<MapScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => StatefulBuilder(
-        builder: (context, actualizarHoja) => SafeArea(
+        builder: (context, actualizarHoja) => DefaultTabController(
+          length: 2,
+          child: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Puntos y recompensas',
+                          style: TextStyle(
+                            color: Color(0xFF00E5FF),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0x3326A8FF),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star,
+                              size: 14,
+                              color: Color(0xFFFFD54F),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              '${_puntos.saldo}',
+                              style: const TextStyle(
+                                color: Color(0xFFFFD54F),
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Ganá puntos caminando, llegando a destinos, por tu racha y con retos.',
+                    style: TextStyle(color: Color(0xFF8FA3BF), fontSize: 12),
+                  ),
+                  const SizedBox(height: 12),
+                  const TabBar(
+                    indicatorColor: Color(0xFF00E5FF),
+                    labelColor: Color(0xFF00E5FF),
+                    unselectedLabelColor: Color(0xFF8FA3BF),
+                    dividerColor: Color(0x3300E5FF),
+                    tabs: [
+                      Tab(icon: Icon(Icons.shopping_cart), text: 'Tienda'),
+                      Tab(icon: Icon(Icons.emoji_events), text: 'Retos'),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Flexible(
+                    child: TabBarView(
+                      children: [
+                        ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: tiendaSkins.length,
+                          itemBuilder: (context, index) {
+                            final articulo = tiendaSkins[index];
+                            final comprado = _comprados.contains(articulo.id);
+                            final alcanza = _puntos.saldo >= articulo.precio;
+                            return Card(
+                              color: const Color(0xFF10182B),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: ListTile(
+                                leading: articulo.skin.build(
+                                  seleccionado: false,
+                                ),
+                                title: Text(
+                                  articulo.nombre,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${articulo.descripcion} · ${articulo.precio} puntos',
+                                  style: const TextStyle(
+                                    color: Color(0xFF8FA3BF),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                trailing: comprado
+                                    ? const Icon(
+                                        Icons.check_circle,
+                                        color: Color(0xFF00FFA3),
+                                      )
+                                    : FilledButton(
+                                        onPressed: alcanza
+                                            ? () => _comprarSkin(
+                                                articulo,
+                                                actualizarHoja,
+                                              )
+                                            : null,
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFF7B2BFF,
+                                          ),
+                                          disabledBackgroundColor: const Color(
+                                            0xFF222C42,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          alcanza
+                                              ? 'Comprar'
+                                              : 'Faltan ${articulo.precio - _puntos.saldo}',
+                                          style: const TextStyle(fontSize: 11),
+                                        ),
+                                      ),
+                              ),
+                            );
+                          },
+                        ),
+                        _vistaRetos(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Lista de retos con su progreso y recompensa.
+  Widget _vistaRetos() {
+    return ListView.builder(
+      shrinkWrap: true,
+      itemCount: retos.length,
+      itemBuilder: (context, index) {
+        final reto = retos[index];
+        final completado = reto.estaCompleto(_puntos);
+        final cobrado = _puntos.entregados.contains(reto.claveEntrega(_puntos));
+        final color = completado
+            ? const Color(0xFF00FFA3)
+            : const Color(0xFF00E5FF);
+        final fraccion = (reto.progreso(_puntos) / reto.meta).clamp(0.0, 1.0);
+
+        return Card(
+          color: const Color(0xFF10182B),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+            padding: const EdgeInsets.all(12),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Icon(reto.icono, color: color, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
                       child: Text(
-                        'Tienda de skins',
-                        style: TextStyle(
-                          color: Color(0xFF00E5FF),
-                          fontSize: 18,
+                        reto.titulo,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
+                        horizontal: 8,
+                        vertical: 4,
                       ),
                       decoration: BoxDecoration(
                         color: const Color(0x3326A8FF),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.star,
-                            size: 14,
-                            color: Color(0xFFFFD54F),
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            '${_puntos.saldo}',
-                            style: const TextStyle(
-                              color: Color(0xFFFFD54F),
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        '+${reto.puntos} pts',
+                        style: const TextStyle(
+                          color: Color(0xFFFFD54F),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Ganá puntos caminando, llegando a destinos y por tu racha diaria.',
-                  style: TextStyle(color: Color(0xFF8FA3BF), fontSize: 12),
-                ),
-                const SizedBox(height: 14),
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: tiendaSkins.length,
-                    itemBuilder: (context, index) {
-                      final articulo = tiendaSkins[index];
-                      final comprado = _comprados.contains(articulo.id);
-                      final alcanza = _puntos.saldo >= articulo.precio;
-                      return Card(
-                        color: const Color(0xFF10182B),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: ListTile(
-                          leading: articulo.skin.build(seleccionado: false),
-                          title: Text(
-                            articulo.nombre,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '${articulo.descripcion} · ${articulo.precio} puntos',
-                            style: const TextStyle(
-                              color: Color(0xFF8FA3BF),
-                              fontSize: 11,
-                            ),
-                          ),
-                          trailing: comprado
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: Color(0xFF00FFA3),
-                                )
-                              : FilledButton(
-                                  onPressed: alcanza
-                                      ? () =>
-                                          _comprarSkin(articulo, actualizarHoja)
-                                      : null,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: const Color(0xFF7B2BFF),
-                                    disabledBackgroundColor:
-                                        const Color(0xFF222C42),
-                                  ),
-                                  child: Text(
-                                    alcanza
-                                        ? 'Comprar'
-                                        : 'Faltan ${articulo.precio - _puntos.saldo}',
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                ),
-                        ),
-                      );
-                    },
+                const SizedBox(height: 4),
+                Text(
+                  reto.descripcion,
+                  style: const TextStyle(
+                    color: Color(0xFF8FA3BF),
+                    fontSize: 11,
                   ),
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: fraccion.toDouble(),
+                    minHeight: 6,
+                    color: color,
+                    backgroundColor: const Color(0xFF222C42),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      reto.progresoTexto(_puntos),
+                      style: const TextStyle(
+                        color: Color(0xFF8FA3BF),
+                        fontSize: 10,
+                      ),
+                    ),
+                    Text(
+                      cobrado
+                          ? '¡Completado!'
+                          : completado
+                          ? 'Listo para cobrar'
+                          : 'En progreso',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -870,17 +1022,17 @@ class _MapScreenState extends State<MapScreen> {
       final cercanos = posicion == null
           ? lugares
           : lugares
-              .where(
-                (lugar) =>
-                    geo.Geolocator.distanceBetween(
-                      posicion.latitude,
-                      posicion.longitude,
-                      lugar.lat,
-                      lugar.lon,
-                    ) <=
-                _radioBusquedaMetros,
-              )
-              .toList();
+                .where(
+                  (lugar) =>
+                      geo.Geolocator.distanceBetween(
+                        posicion.latitude,
+                        posicion.longitude,
+                        lugar.lat,
+                        lugar.lon,
+                      ) <=
+                      _radioBusquedaMetros,
+                )
+                .toList();
       setState(() {
         _resultados = cercanos;
         _buscando = false;
@@ -913,8 +1065,26 @@ class _MapScreenState extends State<MapScreen> {
       _accionAviso = null;
       _buscador.text = lugar.nombre;
     });
+    unawaited(_registrarBusquedaYRetos());
     _moverCamara(lugar.lon, lugar.lat);
     _calcularRuta(lugar);
+  }
+
+  /// Cuenta el lugar elegido para el reto diario de búsquedas.
+  Future<void> _registrarBusquedaYRetos() async {
+    final evaluados = evaluarRetos(_puntos.registrarBusqueda());
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    await evaluados.puntos.guardar(prefs);
+    if (!mounted) return;
+    setState(() {
+      _prefs = prefs;
+      _puntos = evaluados.puntos;
+    });
+    if (evaluados.nuevos.isEmpty) return;
+    final nombres = evaluados.nuevos.map((r) => r.titulo).join(', ');
+    _mostrarMensaje(
+      '¡Reto completado: $nombres! +${evaluados.ganados} puntos.',
+    );
   }
 
   void _limpiarBusqueda() {
@@ -1030,7 +1200,10 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text('Cambia el recorrido y cómo se muestra.', style: etiqueta),
+                    const Text(
+                      'Cambia el recorrido y cómo se muestra.',
+                      style: etiqueta,
+                    ),
                     const SizedBox(height: 18),
                     const Text('Modo de viaje', style: titulo),
                     const SizedBox(height: 8),
@@ -1091,8 +1264,8 @@ class _MapScreenState extends State<MapScreen> {
                               grosor == 3
                                   ? 'Fino'
                                   : grosor == 5
-                                      ? 'Medio'
-                                      : 'Grueso',
+                                  ? 'Medio'
+                                  : 'Grueso',
                             ),
                             selected: actuales.grosor == grosor,
                             onSelected: (_) => setModal(() {
@@ -1177,7 +1350,10 @@ class _MapScreenState extends State<MapScreen> {
         children: [
           Icon(icono, size: 12, color: const Color(0xFF00E5FF)),
           const SizedBox(width: 4),
-          Text(texto, style: const TextStyle(color: Colors.white, fontSize: 11)),
+          Text(
+            texto,
+            style: const TextStyle(color: Colors.white, fontSize: 11),
+          ),
         ],
       ),
     );
@@ -1249,10 +1425,7 @@ class _MapScreenState extends State<MapScreen> {
                 '${_distanciaAlDestino(lugar)} · ${lugar.detalle}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xFF8FA3BF),
-                  fontSize: 10,
-                ),
+                style: const TextStyle(color: Color(0xFF8FA3BF), fontSize: 10),
               ),
               onTap: () => _elegirLugar(lugar),
             ),
@@ -1381,7 +1554,10 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                         title: Text(
                           paso.instruccion,
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
                         ),
                         subtitle: paso.distanciaMetros > 0
                             ? Text(
@@ -1484,21 +1660,13 @@ class _MapScreenState extends State<MapScreen> {
                 ),
                 size: const Size(56, 56),
                 child: _skinsDisponibles
-                    .firstWhere(
-                      (s) => s.id == _skin,
-                      orElse: () => skins.first,
-                    )
+                    .firstWhere((s) => s.id == _skin, orElse: () => skins.first)
                     .build(seleccionado: true),
               ),
             ],
           ),
           // Buscador arriba; el botón de seguir queda libre a la derecha.
-          Positioned(
-            top: 16,
-            left: 16,
-            right: 72,
-            child: _panelBusqueda(),
-          ),
+          Positioned(top: 16, left: 16, right: 72, child: _panelBusqueda()),
           if (_mensaje != null)
             Positioned(
               top: 68,
@@ -1539,7 +1707,10 @@ class _MapScreenState extends State<MapScreen> {
               top: 68,
               left: 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xCC10182B),
                   borderRadius: BorderRadius.circular(20),
@@ -1621,18 +1792,11 @@ class _MapScreenState extends State<MapScreen> {
               tooltip: _siguiendo
                   ? 'Dejar de seguir mi posición'
                   : 'Seguir mi posición',
-              child: Icon(
-                _siguiendo ? Icons.gps_fixed : Icons.gps_not_fixed,
-              ),
+              child: Icon(_siguiendo ? Icons.gps_fixed : Icons.gps_not_fixed),
             ),
           ),
           if (_destino != null)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 88,
-              child: _panelDestino(),
-            ),
+            Positioned(left: 16, right: 16, bottom: 88, child: _panelDestino()),
           Positioned(
             left: 16,
             bottom: 24,
