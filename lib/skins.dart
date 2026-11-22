@@ -1,51 +1,80 @@
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 
-/// Identificadores de los skins disponibles para el indicador de posición.
+/// Identificadores de los skins incluidos en la app.
 enum SkinId { clasico, caballero, robot, compas, nave, explorador }
 
 /// Un skin del marcador: nombre, descripción y constructor del widget.
+///
+/// Si [rutaImagen] no es nulo, el marcador usa esa imagen del inventario
+/// en vez de uno de los dibujos incluidos.
 class Skin {
   const Skin({
     required this.id,
     required this.nombre,
     required this.descripcion,
+    this.rutaImagen,
   });
 
-  final SkinId id;
+  final String id;
   final String nombre;
   final String descripcion;
+  final String? rutaImagen;
 
-  Widget build({required bool seleccionado}) => CustomPaint(
-    size: const Size(56, 56),
-    painter: _SkinPainter(id: id, seleccionado: seleccionado),
-  );
+  bool get esPropio => rutaImagen != null;
+
+  Widget build({required bool seleccionado}) {
+    final ruta = rutaImagen;
+    if (ruta != null) {
+      return ClipOval(
+        child: Image.file(
+          File(ruta),
+          width: 56,
+          height: 56,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const Icon(
+            Icons.image_not_supported,
+            color: Color(0xFF00E5FF),
+            size: 40,
+          ),
+        ),
+      );
+    }
+    final tipo = SkinId.values.where((e) => e.name == id).firstOrNull ??
+        SkinId.clasico;
+    return CustomPaint(
+      size: const Size(56, 56),
+      painter: _SkinPainter(id: tipo, seleccionado: seleccionado),
+    );
+  }
 }
 
 /// Catálogo completo. Todos son diseños originales.
 const List<Skin> skins = [
   Skin(
-    id: SkinId.clasico,
+    id: 'clasico',
     nombre: 'Clásico',
     descripcion: 'Punto GPS con pulso',
   ),
   Skin(
-    id: SkinId.caballero,
+    id: 'caballero',
     nombre: 'Caballero Neo',
     descripcion: 'Guerrero enmascarado',
   ),
   Skin(
-    id: SkinId.robot,
+    id: 'robot',
     nombre: 'Sonda Rover',
     descripcion: 'Robot explorador',
   ),
   Skin(
-    id: SkinId.compas,
+    id: 'compas',
     nombre: 'Brújula',
     descripcion: 'Aguja de navegación',
   ),
-  Skin(id: SkinId.nave, nombre: 'Nave', descripcion: 'Nave espacial'),
+  Skin(id: 'nave', nombre: 'Nave', descripcion: 'Nave espacial'),
   Skin(
-    id: SkinId.explorador,
+    id: 'explorador',
     nombre: 'Explorador',
     descripcion: 'Tigre nocturno',
   ),

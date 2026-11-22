@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:geolocator/geolocator.dart' as geo;
+import 'package:image_picker/image_picker.dart' as picker;
 import 'package:maplibre/maplibre.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'busqueda.dart';
+import 'inventario.dart';
 import 'mapa_local.dart';
 import 'mapas.dart';
 import 'skins.dart';
@@ -64,8 +68,21 @@ class _MapScreenState extends State<MapScreen> {
   bool _centroFijado = false;
   double _centroLon = MapaLocal.centroPorDefectoLon;
   double _centroLat = MapaLocal.centroPorDefectoLat;
-  SkinId _skin = SkinId.clasico;
+  String _skin = SkinId.clasico.name;
+  List<DisenoPropio> _disenosPropios = const [];
   SharedPreferences? _prefs;
+
+  /// Skins incluidos más los que el usuario subió a su inventario.
+  List<Skin> get _skinsDisponibles => [
+        ...skins,
+        for (final diseno in _disenosPropios)
+          Skin(
+            id: diseno.id,
+            nombre: diseno.nombre,
+            descripcion: 'Diseño propio',
+            rutaImagen: diseno.rutaImagen,
+          ),
+      ];
 
   final TextEditingController _buscador = TextEditingController();
   Timer? _busquedaTimer;
@@ -94,16 +111,15 @@ class _MapScreenState extends State<MapScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     final nombre = prefs.getString('skin_indicador');
-    final guardado = nombre == null
-        ? null
-        : SkinId.values.where((s) => s.name == nombre).firstOrNull;
+    final disenos = InventarioDisenos.leer(prefs);
     final provNombre = prefs.getString('proveedor_mapa');
     final proveedorGuardado = provNombre == null
         ? null
         : ProveedorMapaId.values.where((p) => p.name == provNombre).firstOrNull;
     setState(() {
       _prefs = prefs;
-      if (guardado != null) _skin = guardado;
+      _disenosPropios = disenos;
+      if (nombre != null) _skin = nombre;
       if (proveedorGuardado != null) _proveedor = proveedorGuardado;
     });
   }
@@ -305,9 +321,9 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  /// Muestra el catálogo de skins y aplica la selección.
+  /// Muestra el inventario de skins y aplica la selección.
   Future<void> _abrirCatalogo() async {
-    final elegido = await showModalBottomSheet<SkinId>(
+    final elegido = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: const Color(0xFF0B1220),
       isScrollControlled: true,
@@ -346,7 +362,7 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                         SizedBox(height: 2),
                         Text(
-                          'Elegí cómo aparece tu posición en el mapa',
+                          'Inventario: elegí o subí tu propio diseño',
                           style: TextStyle(
                             color: Color(0xFF8FA3BF),
                             fontSize: 12,
@@ -354,6 +370,14 @@ class _MapScreenState extends State<MapScreen> {
                         ),
                       ],
                     ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.add_photo_alternate,
+                      color: Color(0xFF00E5FF),
+                    ),
+                    tooltip: 'Agregar diseño propio',
+                    onPressed: () => Navigator.pop(context, '_agregar'),
                   ),
                 ],
               ),
@@ -367,57 +391,82 @@ class _MapScreenState extends State<MapScreen> {
                   crossAxisSpacing: 12,
                   childAspectRatio: 0.78,
                 ),
-                itemCount: skins.length,
+                itemCount: _skinsDisponibles.length,
                 itemBuilder: (context, index) {
-                  final skin = skins[index];
+                  final skin = _skinsDisponibles[index];
                   final activo = skin.id == _skin;
-                  return InkWell(
-                    onTap: () => Navigator.pop(context, skin.id),
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: activo
-                            ? const Color(0x3326A8FF)
-                            : const Color(0xFF10182B),
+                  return Stack(
+                    children: [
+                      InkWell(
+                        onTap: () => Navigator.pop(context, skin.id),
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: activo
-                              ? const Color(0xFF00E5FF)
-                              : const Color(0x3300E5FF),
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          skin.build(seleccionado: activo),
-                          const SizedBox(height: 4),
-                          Text(
-                            skin.nombre,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: activo
+                                ? const Color(0x3326A8FF)
+                                : const Color(0xFF10182B),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
                               color: activo
                                   ? const Color(0xFF00E5FF)
-                                  : Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                                  : const Color(0x3300E5FF),
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Text(
-                              skin.descripcion,
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              style: const TextStyle(
-                                color: Color(0xFF8FA3BF),
-                                fontSize: 9,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              skin.build(seleccionado: activo),
+                              const SizedBox(height: 4),
+                              Text(
+                                skin.nombre,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: activo
+                                      ? const Color(0xFF00E5FF)
+                                      : Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
+                              const SizedBox(height: 2),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                child: Text(
+                                  skin.descripcion,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  style: const TextStyle(
+                                    color: Color(0xFF8FA3BF),
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
+                      if (skin.esPropio)
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Color(0xFFFF3D71),
+                              size: 20,
+                            ),
+                            tooltip: 'Eliminar diseño',
+                            onPressed: () async {
+                              await _eliminarDiseno(skin.id);
+                              if (context.mounted) {
+                                Navigator.pop(context, '_recargar');
+                              }
+                            },
+                          ),
+                        ),
+                    ],
                   );
                 },
               ),
@@ -426,9 +475,81 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
     );
+    if (elegido == '_agregar') {
+      await _agregarDiseno();
+      if (mounted) await _abrirCatalogo();
+      return;
+    }
+    if (elegido == '_recargar') {
+      if (mounted) await _abrirCatalogo();
+      return;
+    }
     if (elegido != null) {
       setState(() => _skin = elegido);
-      await _prefs?.setString('skin_indicador', elegido.name);
+      await _prefs?.setString('skin_indicador', elegido);
+    }
+  }
+
+  /// Elige una imagen de la galería, la copia al almacenamiento de la app
+  /// y la agrega al inventario como un diseño más.
+  Future<void> _agregarDiseno() async {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    final imagen = await picker.ImagePicker().pickImage(
+      source: picker.ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 512,
+      maxHeight: 512,
+    );
+    if (imagen == null) return;
+
+    final id = 'propio_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      final documentos = await getApplicationDocumentsDirectory();
+      final carpeta = Directory('${documentos.path}/disenos');
+      if (!await carpeta.exists()) await carpeta.create(recursive: true);
+      final destino = '${carpeta.path}/$id.jpg';
+      await File(imagen.path).copy(destino);
+
+      final nuevo = DisenoPropio(
+        id: id,
+        nombre: 'Diseño ${_disenosPropios.length + 1}',
+        rutaImagen: destino,
+      );
+      final actualizados = [..._disenosPropios, nuevo];
+      await InventarioDisenos.guardar(prefs, actualizados);
+      if (!mounted) return;
+      setState(() {
+        _disenosPropios = actualizados;
+        _skin = id;
+      });
+      await prefs.setString('skin_indicador', id);
+    } catch (_) {
+      if (mounted) {
+        _mostrarMensaje('No se pudo guardar la imagen. Inténtalo de nuevo.');
+      }
+    }
+  }
+
+  /// Quita un diseño propio del inventario y borra su archivo.
+  Future<void> _eliminarDiseno(String id) async {
+    final diseno = _disenosPropios.where((d) => d.id == id).firstOrNull;
+    if (diseno == null) return;
+    try {
+      await File(diseno.rutaImagen).delete();
+    } catch (_) {
+      // Si el archivo ya no existe, igual lo quitamos del inventario.
+    }
+    final actualizados = _disenosPropios.where((d) => d.id != id).toList();
+    final prefs = _prefs;
+    if (prefs != null) await InventarioDisenos.guardar(prefs, actualizados);
+    if (!mounted) return;
+    setState(() {
+      _disenosPropios = actualizados;
+      if (_skin == id) _skin = SkinId.clasico.name;
+    });
+    if (_skin == SkinId.clasico.name) {
+      await prefs?.setString('skin_indicador', SkinId.clasico.name);
     }
   }
 
@@ -725,8 +846,11 @@ class _MapScreenState extends State<MapScreen> {
                   lat: _posicion?.latitude ?? MapaLocal.centroPorDefectoLat,
                 ),
                 size: const Size(56, 56),
-                child: skins
-                    .firstWhere((s) => s.id == _skin)
+                child: _skinsDisponibles
+                    .firstWhere(
+                      (s) => s.id == _skin,
+                      orElse: () => skins.first,
+                    )
                     .build(seleccionado: true),
               ),
             ],

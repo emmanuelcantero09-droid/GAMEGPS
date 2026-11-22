@@ -25,7 +25,7 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 5. Acercar / alejar.
 6. Marcadores personalizados.
 7. Ubicaciones favoritas.
-8. ✅ Catálogo de skins para el indicador de posición.
+8. ✅ Catálogo de skins para el indicador de posición, con opción de subir diseños propios desde la galería (inventario persistente).
 9. ✅ Logo propio gamer/GPS.
 10. Personalización de colores y apariencia.
 11. Rutas y navegación (futuras versiones).
@@ -53,10 +53,16 @@ al reiniciar la app.
 
 ## Skins del indicador
 
-El botón violeta 🎨 abre un catálogo con seis skins dibujados en `lib/skins.dart`:
+El botón violeta 🎨 abre el inventario con seis skins dibujados en `lib/skins.dart`:
 Clásico, Caballero Neo (guerrero enmascarado original), Sonda Rover, Brújula, Nave y
 Explorador. Todos son vectores generados con `CustomPainter`, sin assets de terceros
 ni personajes con copyright. El indicador se ancla a la posición real con `WidgetLayer`.
+
+El botón **➕** del inventario abre la galería y permite agregar tus propias imágenes como
+marcadores (`image_picker`). Cada imagen se copia al almacenamiento privado de la app, se
+recorta en círculo y se guarda en la lista de diseños propios (`lib/inventario.dart`), junto
+con el skin seleccionado. Los diseños propios se pueden borrar con el icono 🗑️ de su tarjeta.
+No se suben a ningún servidor: solo viven en tu teléfono.
 
 ## Logo
 
