@@ -1,48 +1,40 @@
-# GEOQUEST · Web
+# GAME GPS · Web
 
-Página construida con las interfaces que estaban en `html/`
-(`interfas de usurios}` y `administrador`), rediseñadas con la paleta
-Hollow Knight. **No usa nada de Google**: ni Google Fonts, ni Material Design,
-ni Google Maps (el mapa es Leaflet + OpenStreetMap).
+Web de presentación de **GAME GPS** (versión beta). Punto de entrada:
+`web/index.html`.
 
-El archivo `gamegps_aplicaci_n_completa_con_mapa_tienda_y_skins.html` de la raíz
-se conserva solo como referencia histórica: **no se usa ni se referencia** desde
-esta web. El punto de entrada es `web/index.html`.
+Es un único archivo HTML con el CSS y el JavaScript integrados: no usa frameworks,
+ni CDN, ni Google Fonts, ni Google Maps. El teléfono de la portada y los iconos
+están dibujados con SVG/CSS dentro del propio archivo.
 
-## Estructura
+La web promociona la app y muestra lo que se puede hacer: funciones, skins,
+estado real de la beta y botón de descarga del APK.
+
+## Descarga
+
+El botón apunta al APK real del proyecto:
 
 ```
-web/
-├── index.html              # Acceso + vista Viajero + panel Administrador
-├── css/
-│   ├── base.css            # Variables, tipografía del sistema, formularios, toasts
-│   ├── usuario.css         # Mapa, GPS, estadísticas, tienda y reportes
-│   ├── admin.css           # Resumen, usuarios, catálogo y lugares
-│   └── responsive.css      # Tablet y móvil
-├── js/
-│   ├── datos.js            # Estado, API/localStorage y utilidades
-│   ├── usuario.js          # Login, mapa, recorridos, tienda y reportes
-│   └── admin.js            # Panel de administración
-└── img/avatar.svg          # Avatar propio dibujado en SVG
+../build/app/outputs/flutter-apk/app-release.apk
 ```
 
-## Arranque recomendado (con base de datos real)
+La ruta empieza con `../` porque el HTML está dentro de `web/`. Si mueves el
+archivo a otra carpeta, ajusta ese `href`.
+
+> Antes de publicar en Internet: el APK es local. Súbelo a una URL pública y
+> cambia ese `href`, o el botón no funcionará fuera de tu PC.
+
+## Cómo verla
+
+Abre `web/index.html` con doble clic en el navegador. Si prefieres servirla por HTTP:
 
 ```bash
-python3 database/api.py
-# http://localhost:8000
+python3 -m http.server 8000
+# http://localhost:8000/web/
 ```
 
-El servidor sirve `web/` y expone `/api/estado` y `/api/accion`, respaldados por
-`database/geoquest.db`. Si abres `index.html` directamente, la web usa una copia
-en `localStorage` para que la demo siga funcionando sin servidor.
+## Restos de la web anterior
 
-## Cuentas de ejemplo
-
-| Correo | Contraseña | Rol |
-| --- | --- | --- |
-| viajero@geoquest.local | 123456 | usuario |
-| hornet@geoquest.local | 123456 | usuario |
-| admin@geoquest.local | admin123 | administrador |
-
-También está el botón **Entrar como invitado / Modo Demo**.
+Las carpetas `css/`, `js/` e `img/` pertenecían a la antigua web GeoQuest y **ya no se
+usan**. Se pueden borrar sin afectar a esta web.
+Se conserva una copia del antiguo `index.html` en `/tmp/opencode/geoquest-index-backup.html`.
