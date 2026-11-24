@@ -172,25 +172,26 @@ o en bicicleta (`lib/rutas.dart`). La línea se dibuja sobre cualquier fuente de
 (`lib/capa_ruta.dart`) y la cámara encuadra el recorrido completo.
 
 El parser de maniobras acepta la ubicación tanto como `[longitud, latitud]` —el formato
-geojson que envía OSRM— como en el objeto `{longitude, latitude}`. Además, los movimientos
-de cámara están aislados del cálculo: si el GPS cancela una animación, la ruta ya calculada
-se dibuja igualmente. Ambos casos están cubiertos en `test/rutas_test.dart`.
+geojson que envía OSRM— como en el objeto `{longitude, latitude}`. Ambos casos están
+cubiertos en `test/rutas_test.dart`.
 
-### Navegación guiada (HUD direccional)
+### Panel de ruta y fiabilidad en Android
 
-Al calcular la ruta entra en **modo navegación**, como un GPS: la cámara sigue al viajero con
-zoom de calle y aparece un HUD (`lib/hud_navegacion.dart`) con:
+Al elegir un destino se muestra la **línea del recorrido**, las **flechas de sentido**,
+el resumen con distancia y tiempo y las instrucciones en el panel inferior, y la cámara
+encuadra la ruta completa con `moveCamera` (llamada nativa directa, sin animación).
 
-- **Próxima maniobra:** flecha grande, distancia hasta el giro y nombre de la calle.
-- **Siguiente maniobra** ya visible debajo, con su distancia.
-- **Distancia y tiempo restantes**, hora estimada de llegada y barra de progreso.
-- **Velocidad** en km/h y **rumbo** con letra cardinal (N, NE, E…), girando con el móvil.
-- **Flechas sobre la línea de la ruta** para ver el sentido del recorrido de un vistazo.
-- Botones para **volver a encuadrar** y **terminar la navegación**.
+> **Nota de corrección:** las versiones anteriores entraban en un "modo navegación" con
+> HUD giratorio que, en Android, dejaba el mapa en gris y sin respuesta al seleccionar una
+> dirección. El componente de ubicación nativo no se activaba (`enableLocation()`) y
+> `trackLocation()` terminaba bloqueando el renderizado. El modo navegación se ha
+> desactivado de forma segura: la ruta y sus indicaciones siguen funcionando, sin riesgo
+> de congelar la pantalla. El indicador del usuario también se ha movido bajo el punto GPS
+> para que no lo tape el buscador.
 
-La posición sobre la ruta se calcula proyectando el GPS sobre la geometría
-(`progresoRuta` en `lib/rutas.dart`), así que el avance no salta cuando la señal se desvía
-unos metros de la calle. El HUD se prueba en `test/navegacion_test.dart`.
+El HUD direccional (`lib/hud_navegacion.dart`) y el cálculo de avance (`progresoRuta` en
+`lib/rutas.dart`) se conservan en el código y sus pruebas en `test/navegacion_test.dart`
+para una futura reactivación con otra API de cámara.
 
 El botón **Personalizar** del panel del destino (o el icono 🎚️ junto a las capas) abre un panel para elegir:
 

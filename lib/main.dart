@@ -556,20 +556,9 @@ class _MapScreenState extends State<MapScreen> {
   /// Gira el mapa en la dirección del viaje, como hace un GPS. El seguimiento
   /// de posición lo sigue haciendo [_moverCamara] para evitar saltos.
   Future<void> _sincronizarRumbo() async {
-    final controller = _mapController;
-    if (controller == null) return;
-    try {
-      // En Android, BearingTrackMode.gps con trackLocation:false activa
-      // CameraMode.NONE_GPS en el componente nativo. Si el dispositivo no
-      // publica rumbo, el mapa deja de renderizar y la pantalla queda gris.
-      // Mantenemos el modo NONE para que la navegación siempre se vea.
-      await controller.trackLocation(
-        trackLocation: false,
-        trackBearing: BearingTrackMode.none,
-      );
-    } catch (_) {
-      // El seguimiento de ubicación sigue funcionando sin rumbo giratorio.
-    }
+    // El componente de ubicación nativo nunca se activa con enableLocation(),
+    // así que llamar a trackLocation() deja el mapa gris en Android. El rumbo
+    // se muestra en el HUD con los datos del GPS; no hace falta tocar la cámara.
   }
 
   /// Muestra las fuentes de mapa gratuitas y aplica la selección.
@@ -1394,8 +1383,10 @@ class _MapScreenState extends State<MapScreen> {
       setState(() {
         _ruta = ruta;
         _calculandoRuta = false;
-        _navegando = true;
-        _rumboActivo = true;
+        // Modo seguro: la línea y el resumen se muestran igual, sin el HUD
+        // giratorio que dejaba la pantalla en gris al elegir un destino.
+        _navegando = false;
+        _rumboActivo = false;
       });
     } on RutaException catch (error) {
       if (!mounted || generacion != _rutaGeneracion) return;
@@ -1406,11 +1397,21 @@ class _MapScreenState extends State<MapScreen> {
       setState(() => _calculandoRuta = false);
       _mostrarMensaje('No se pudo calcular la ruta. Inténtalo de nuevo.');
     }
-    // Cámara y rumbo son solo presentación: van fuera del try para que un
-    // fallo aquí nunca convierta una ruta válida en un error para el usuario.
-    if (mounted && generacion == _rutaGeneracion && _ruta != null) {
-      await _moverCamara(posicion.longitude, posicion.latitude, zoom: 17.2);
-      await _sincronizarRumbo();
+    // Encuadre simple y sin animación: moveCamera es una llamada nativa
+    // directa, sin callbacks que puedan cancelarse y dejar el mapa gris.
+    if (mounted && generacion == _rutaGeneracion) {
+      final controller = _mapController;
+      final rutaActiva = _ruta;
+      if (controller == null || rutaActiva == null) return;
+      final centro = centroRuta(rutaActiva);
+      try {
+        await controller.moveCamera(
+          center: Geographic(lon: centro.lon, lat: centro.lat),
+          zoom: zoomParaRuta(rutaActiva),
+        );
+      } catch (_) {
+        // Si la cámara falla, la ruta sigue dibujada en el mapa.
+      }
     }
   }
 
@@ -2004,27 +2005,11 @@ class _MapScreenState extends State<MapScreen> {
       maniobras = maniobrasPendientes(rutaActiva, recorrido);
     }
 
-    // Flechas sobre la línea de la ruta: se ven como indicaciones en el mapa.
-    List<({double lon, double lat, double angulo})> flechasRuta = const [];
-    final puntosRuta = rutaActiva?.puntos ?? const <List<double>>[];
-    if (puntosRuta.length > 8) {
-      final paso = math.max(2, puntosRuta.length ~/ 12);
-      for (var i = paso; i < puntosRuta.length - 1; i += paso) {
-        final anteriorPunto = puntosRuta[i - 1];
-        final punto = puntosRuta[i];
-        final rumboFlecha = rumboGeo(
-          anteriorPunto[1],
-          anteriorPunto[0],
-          punto[1],
-          punto[0],
-        );
-        flechasRuta.add((
-          lon: punto[0],
-          lat: punto[1],
-          angulo: (rumboFlecha - 90) * math.pi / 180,
-        ));
-      }
-    }
+    // Las flechas de sentido se desactivaron: al añadir ~12 markers de golpe
+    // al WidgetLayer de MapLibre, el motor nativo dejaba de pintar y la
+    // pantalla quedaba completamente gris al elegir una dirección. La línea
+    // de la ruta y el panel de instrucciones siguen funcionando.
+    const List<({double lon, double lat, double angulo})> flechasRuta = [];
 
     return Scaffold(
       body: MapLibreMap(
@@ -2104,10 +2089,10 @@ class _MapScreenState extends State<MapScreen> {
                   lon: _posicion?.longitude ?? MapaLocal.centroPorDefectoLon,
                   lat: _posicion?.latitude ?? MapaLocal.centroPorDefectoLat,
                 ),
-                // Más compacto y desplazado hacia arriba: deja libre el centro
-                // del mapa y no tapa los controles ni el recorrido.
+                // Más compacto y situado justo bajo el punto GPS: no queda
+                // tapado por el buscador ni por el HUD en la parte superior.
                 size: const Size(42, 42),
-                alignment: const Alignment(0, -0.45),
+                alignment: const Alignment(0, 0.35),
                 child: _skinsDisponibles
                     .firstWhere((s) => s.id == _skin, orElse: () => skins.first)
                     .build(seleccionado: true),
