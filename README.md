@@ -6,7 +6,7 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 
 > Versión actual: **0.1.0** (build 1). Se muestra en la esquina inferior izquierda del mapa.
 
-> Novedad: al abrir la app ahora pide **cuenta** (iniciar sesión / crear cuenta) y muestra un avatar pequeño arriba-derecha con los datos de la cuenta.
+> Novedad: al abrir la app ahora pide **cuenta** (iniciar sesión / crear cuenta) y muestra un avatar pequeño en el lateral derecho del mapa, por debajo del botón de tema, con los datos de la cuenta.
 
 ## Cuenta y base de datos
 
@@ -186,8 +186,9 @@ encuadra la ruta completa con `moveCamera` (llamada nativa directa, sin animaci�
 > dirección. El componente de ubicación nativo no se activaba (`enableLocation()`) y
 > `trackLocation()` terminaba bloqueando el renderizado. El modo navegación se ha
 > desactivado de forma segura: la ruta y sus indicaciones siguen funcionando, sin riesgo
-> de congelar la pantalla. El indicador del usuario también se ha movido bajo el punto GPS
-> para que no lo tape el buscador.
+> de congelar la pantalla. El indicador del usuario se ha movido bajo el punto GPS para
+> que no lo tape el buscador, y el avatar de la cuenta está ahora en el lateral derecho,
+> bajo el selector de tema, porque antes quedaba tapado por ese botón.
 
 El HUD direccional (`lib/hud_navegacion.dart`) y el cálculo de avance (`progresoRuta` en
 `lib/rutas.dart`) se conservan en el código y sus pruebas en `test/navegacion_test.dart`

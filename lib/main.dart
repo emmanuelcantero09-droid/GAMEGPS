@@ -2149,9 +2149,10 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ),
             ),
-          // Cuenta activa: avatar pequeño que no tapa el mapa ni los controles.
+          // Cuenta activa: avatar en la derecha, por debajo del botón de tema
+          // nocturno y de la versión, para que ningún control lo tape.
           Positioned(
-            top: 72,
+            top: 188,
             right: 16,
             child: Tooltip(
               message: 'Mi cuenta',
