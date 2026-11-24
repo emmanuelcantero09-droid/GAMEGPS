@@ -10,8 +10,9 @@ class MapaLocal {
   /// Separación entre calles (~200 m).
   static const double paso = 0.0018;
 
-  static const double centroPorDefectoLon = -73.9857;
-  static const double centroPorDefectoLat = 40.7484;
+  /// Medellín, Colombia: zona cubierta por el paquete de teselas embebidas.
+  static const double centroPorDefectoLon = -75.5812;
+  static const double centroPorDefectoLat = 6.2442;
 
   /// Estilo mínimo: solo fondo. No declara ninguna fuente remota.
   static const String style = '''

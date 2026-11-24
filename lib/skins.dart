@@ -62,8 +62,8 @@ class Skin {
         ),
       );
     }
-    final tipo = SkinId.values.where((e) => e.name == id).firstOrNull ??
-        SkinId.clasico;
+    final tipo =
+        SkinId.values.where((e) => e.name == id).firstOrNull ?? SkinId.clasico;
     return CustomPaint(
       size: const Size(56, 56),
       painter: _SkinPainter(id: tipo, seleccionado: seleccionado),
@@ -73,32 +73,16 @@ class Skin {
 
 /// Catálogo completo. Todos son diseños originales.
 const List<Skin> skins = [
-  Skin(
-    id: 'clasico',
-    nombre: 'Clásico',
-    descripcion: 'Punto GPS con pulso',
-  ),
+  Skin(id: 'clasico', nombre: 'Clásico', descripcion: 'Punto GPS con pulso'),
   Skin(
     id: 'caballero',
     nombre: 'Caballero Neo',
     descripcion: 'Guerrero enmascarado',
   ),
-  Skin(
-    id: 'robot',
-    nombre: 'Sonda Rover',
-    descripcion: 'Robot explorador',
-  ),
-  Skin(
-    id: 'compas',
-    nombre: 'Brújula',
-    descripcion: 'Aguja de navegación',
-  ),
+  Skin(id: 'robot', nombre: 'Sonda Rover', descripcion: 'Robot explorador'),
+  Skin(id: 'compas', nombre: 'Brújula', descripcion: 'Aguja de navegación'),
   Skin(id: 'nave', nombre: 'Nave', descripcion: 'Nave espacial'),
-  Skin(
-    id: 'explorador',
-    nombre: 'Explorador',
-    descripcion: 'Tigre nocturno',
-  ),
+  Skin(id: 'explorador', nombre: 'Explorador', descripcion: 'Tigre nocturno'),
 ];
 
 const Color _cyan = Color(0xFF00E5FF);

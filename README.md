@@ -6,6 +6,40 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 
 > Versión actual: **0.1.0** (build 1). Se muestra en la esquina inferior izquierda del mapa.
 
+> Novedad: al abrir la app ahora pide **cuenta** (iniciar sesión / crear cuenta) y muestra un avatar pequeño arriba-derecha con los datos de la cuenta.
+
+## Cuenta y base de datos
+
+La app usa la base de datos SQLite del proyecto (`database/geoquest.db`) a través del API Python `database/api.py`, que sirve el JSON en el puerto 8000 sin dependencias externas. Al iniciar sesión se validan correo y contraseña contra la tabla `interfaz_auth`; el registro crea la cuenta, sus estadísticas y su fila en el panel de administración.
+
+La cuenta verificada se guarda en `SharedPreferences`, así que **no hace falta iniciar sesión cada vez que se abre la app**: arranca directamente en el mapa. Solo se vuelve a pedir la contraseña después de tocar **Cerrar sesión**. Nunca se almacena la contraseña en el teléfono.
+
+### Cuentas listas para usar
+
+| Correo | Contraseña | Perfil |
+| --- | --- | --- |
+| `emmanuel@gamegps.local` | `gamegps123` | Cuenta personal (Emmanuel) |
+| `viajero@geoquest.local` | `123456` | Viajero de demostración (320 puntos) |
+| `admin@geoquest.local` | `admin123` | Administrador |
+
+La pantalla de acceso tiene un botón **Usar cuenta de demostración** que rellena la segunda automáticamente.
+
+### Encender el API antes de abrir la app
+
+```bash
+python3 database/api.py          # http://localhost:8000
+```
+
+Con el celular conectado por USB/WSL, redirige el puerto para que el teléfono alcance el API:
+
+```bash
+adb reverse tcp:8000 tcp:8000
+```
+
+Si usas WiFi en lugar de USB, toca **Servidor** en la pantalla de acceso y escribe la IP del ordenador, por ejemplo `http://192.168.1.10:8000`. La dirección queda recordada.
+
+> En esta beta las contraseñas se guardan en texto plano en la base de datos de demostración y el progreso de cada partida (puntos, skins, retos) sigue en el teléfono. Para producción habría que hashear contraseñas y sincronizar el progreso.
+
 ## Stack previsto
 
 | Capa | Tecnología |
@@ -13,7 +47,7 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 | App | Flutter 3.50.0 / Dart 3.14.0 |
 | Mapas | MapLibre |
 | Datos geográficos | OpenStreetMap |
-| Backend (futuro) | Supabase + PostgreSQL |
+| Backend | SQLite (`database/geoquest.db`) + API Python (`database/api.py`) |
 | Control de versiones | Git + GitHub |
 
 ## Funciones previstas
@@ -27,7 +61,7 @@ Aplicación de navegación GPS para Android con una interfaz futurista inspirada
 7. Ubicaciones favoritas.
 8. ✅ Catálogo de skins para el indicador de posición, con opción de subir diseños propios desde la galería (inventario persistente).
 9. ✅ Logo propio gamer/GPS.
-10. ✅ Estilo de mapa propio con colores de GAME GPS (fondo azul noche, caminos cian, zonas verdes esmeralda).
+10. ✅ Estilos vectoriales propios: GAME GPS Custom (cian/esmeralda) y cuatro paletas Hollow Knight (Noche, Niebla, Cristal y Carmesí), con iconos de juego en los puntos de interés.
 11. ✅ Cálculo de rutas desde tu posición con OSRM/OpenStreetMap, personalizables (modo, color, grosor, idioma y unidades). La navegación guiada con voz queda para futuras versiones.
 12. ✅ Puntos por distancia real recorrida, por llegar al destino y por racha diaria.
 13. ✅ Tienda de skins: se compran con puntos y pasan a tu inventario.
@@ -50,7 +84,7 @@ y buscar 3 lugares (+10).
 **Metas totales** (una sola vez): 1/5/10 km recorridos (+15/+30/+50) y
 3/10/25 destinos distintos (+20/+50/+100).
 
-Los saldos, las compras, la racha y el progreso se guardan solo en tu teléfono.
+Los saldos, las compras, la racha y el progreso de la partida se guardan en tu teléfono (SharedPreferences); la cuenta y el saldo del perfil se consultan en la base de datos SQLite del proyecto.
 
 La tienda incluye 8 diseños de [game-icons.net](https://game-icons.net/) bajo licencia
 **CC BY 3.0**: Dragón (Faithtoken), Androide clásico y Astronauta (Lorc), Ninja (DarkZaitzev),
@@ -68,16 +102,55 @@ con el texto **¡Llegaste!** (dura 1,7 s y no bloquea el mapa).
 
 ## Modos de mapa
 
+- **Propio · calles reales offline** (predeterminado): el APK incluye **2.397 teselas reales
+  de OpenStreetMap** en `assets/tiles` (área metropolitana de Medellín y corredor oeste,
+  zooms 14–17). `lib/teselas_locales.dart` abre un servidor en `127.0.0.1` que se las entrega
+  a MapLibre, así que el mapa muestra calles, nombres y números **sin internet y sin clave**.
+  Las teselas se dibujan sin desvanecido (no parpadean); el botón 🌙 alterna un tema nocturno
+  que mantiene las calles reales. Si te alejas de la zona cubierta, el servidor pide la tesela
+  a OpenStreetMap, la guarda en caché (memoria + disco) y la reenvía. Datos © OpenStreetMap.
+- **GPS · Calles reales**: calles de OpenStreetMap con espejo de respaldo y **acabado de
+  navegación**: tinete azul noche, contraste reforzado y teselas sin desvanecido (no
+  parpadean). El chip superior muestra el distintivo **GPS** con el rumbo, y el botón 🧭
+  (junto al de seguir posición) gira el mapa en la dirección del viaje como un GPS real;
+  al iniciar una ruta se activa automáticamente y al detenerla vuelve al norte. No depende
+  de glifos ni sprites remotos. Datos © OpenStreetMap.
+- **Hallownest · Noche**, **Niebla**, **Cristal** y **Carmesí**: cuatro paletas inspiradas en
+  Hollow Knight (`lib/estilos_hollow.dart`). Usan **teselas de OpenStreetMap oscurecidas**
+  con una capa fina de tinte del reino y los seis iconos propios sobre los puntos de interés.
+  Se retiraron las 111 capas vectoriales y el texto remoto: apagaban las calles y, si los
+  glifos fallaban, el documento completo era rechazado y el mapa quedaba vacío.
 - **GAME GPS Custom**: estilo vectorial propio (`lib/estilo_custom.dart`) con teselas de
-  **OpenFreeMap** y la paleta de la app aplicada a 111 capas: caminos cian, parques verdes,
-  agua azul, edificios gris azulado y etiquetas claras. Gratis, sin key ni registro.
-  Datos © OpenStreetMap, estilo © OpenFreeMap/OpenMapTiles (MIT). Requiere conexión.
-- **CARTO Dark** (predeterminado): calles reales de OpenStreetMap con estilo oscuro, sin API key.
-- **Mapa local** (opcional): calles, manzanas, parques y marcador generados en
-  `lib/mapa_local.dart` con GeoJSON embebido. No descarga teselas, no usa API key y
-  funciona en modo avión. Se alterna con el botón de **capas** de la izquierda.
-- **Otras fuentes online**: el selector incluye **OpenStreetMap**, **OSM HOT** y
-  **OpenTopoMap**. Todas son gratuitas, sin API key y **ninguna usa Google Maps**. Requieren conexión.
+  **OpenFreeMap** y la paleta de la app aplicada a 114 capas con aspecto de GPS: vías
+  jerárquicas (autopistas esmeralda, arterias cian, calles secundarias azul claro),
+  halo luminoso bajo las vías principales, edificios perfilados y nombres de calles en
+  blanco con contorno oscuro. Incluye flechas de sentido único y escudos de ruta.
+  Gratis, sin registro. Datos © OpenStreetMap, estilo © OpenFreeMap/OpenMapTiles (MIT).
+  Requiere conexión.
+- Las fuentes anteriores se migran automáticamente al mapa propio offline para que siempre
+  abras sobre un mapa con calles y nombres. **Ninguna fuente usa Google Maps** y todas son
+  gratuitas y sin registro.
+
+> Nota: los servidores raster de CARTO (`rastertiles/voyager` y `dark_all`) estampan
+> **«API KEY REQUIRED»** en las teselas cuando no hay clave, con estado HTTP 200. Por eso
+> **ningún estilo usa CARTO**: las calles viven en teselas embebidas de OpenStreetMap, en
+> OpenStreetMap en línea o en OpenFreeMap. No hay Google Maps ni claves en la app.
+
+### Iconos de juego
+
+Los puntos de interés ya no muestran el símbolo genérico del mapa. Se dibujan en Dart
+(`lib/iconos_hollow.dart`) y se registran como imágenes del estilo MapLibre:
+
+| Icono | Sustituye a | Uso |
+| --- | --- | --- |
+| **Sanctuario** | hospital / clínica | cruz de bordes afilados con núcleo luminoso |
+| **Manjar** | restaurantes, cafés | seta con sombrero decorado |
+| **Refugio** | hoteles, hostales | casa tejada |
+| **Tesoro** | tiendas, bancos | diamante con brillo interior |
+| **Poción** | farmacias, combustible | frasco con líquido |
+| **Runa** | museos, miradores, escuelas | ojo con espiral |
+
+La asignación se hace por clase OSM con una expresión `icon-image` dentro del estilo.
 
 ## Búsqueda de lugares
 
@@ -97,6 +170,27 @@ Al tocar un resultado de la búsqueda se calcula una ruta desde tu posición has
 **OSRM** sin API key: el servidor público para coche y los servidores de OpenStreetMap para ir a pie
 o en bicicleta (`lib/rutas.dart`). La línea se dibuja sobre cualquier fuente de mapa
 (`lib/capa_ruta.dart`) y la cámara encuadra el recorrido completo.
+
+El parser de maniobras acepta la ubicación tanto como `[longitud, latitud]` —el formato
+geojson que envía OSRM— como en el objeto `{longitude, latitude}`. Además, los movimientos
+de cámara están aislados del cálculo: si el GPS cancela una animación, la ruta ya calculada
+se dibuja igualmente. Ambos casos están cubiertos en `test/rutas_test.dart`.
+
+### Navegación guiada (HUD direccional)
+
+Al calcular la ruta entra en **modo navegación**, como un GPS: la cámara sigue al viajero con
+zoom de calle y aparece un HUD (`lib/hud_navegacion.dart`) con:
+
+- **Próxima maniobra:** flecha grande, distancia hasta el giro y nombre de la calle.
+- **Siguiente maniobra** ya visible debajo, con su distancia.
+- **Distancia y tiempo restantes**, hora estimada de llegada y barra de progreso.
+- **Velocidad** en km/h y **rumbo** con letra cardinal (N, NE, E…), girando con el móvil.
+- **Flechas sobre la línea de la ruta** para ver el sentido del recorrido de un vistazo.
+- Botones para **volver a encuadrar** y **terminar la navegación**.
+
+La posición sobre la ruta se calcula proyectando el GPS sobre la geometría
+(`progresoRuta` en `lib/rutas.dart`), así que el avance no salta cuando la señal se desvía
+unos metros de la calle. El HUD se prueba en `test/navegacion_test.dart`.
 
 El botón **Personalizar** del panel del destino (o el icono 🎚️ junto a las capas) abre un panel para elegir:
 

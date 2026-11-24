@@ -2,43 +2,43 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:game_gps/rutas.dart';
 
 Map<String, dynamic> respuestaEjemplo() => {
-      'code': 'Ok',
-      'routes': [
+  'code': 'Ok',
+  'routes': [
+    {
+      'distance': 1520.4,
+      'duration': 480.0,
+      'geometry': {
+        'type': 'LineString',
+        'coordinates': [
+          [-3.7038, 40.4168],
+          [-3.7010, 40.4180],
+          [-3.6833, 40.4149],
+        ],
+      },
+      'legs': [
         {
-          'distance': 1520.4,
-          'duration': 480.0,
-          'geometry': {
-            'type': 'LineString',
-            'coordinates': [
-              [-3.7038, 40.4168],
-              [-3.7010, 40.4180],
-              [-3.6833, 40.4149],
-            ],
-          },
-          'legs': [
+          'steps': [
             {
-              'steps': [
-                {
-                  'distance': 120.5,
-                  'name': 'Calle de Alcalá',
-                  'maneuver': {'type': 'depart', 'bearing_after': 90},
-                },
-                {
-                  'distance': 300.0,
-                  'name': 'Gran Vía',
-                  'maneuver': {'type': 'turn', 'modifier': 'right'},
-                },
-                {
-                  'distance': 0.0,
-                  'name': '',
-                  'maneuver': {'type': 'arrive'},
-                },
-              ],
+              'distance': 120.5,
+              'name': 'Calle de Alcalá',
+              'maneuver': {'type': 'depart', 'bearing_after': 90},
+            },
+            {
+              'distance': 300.0,
+              'name': 'Gran Vía',
+              'maneuver': {'type': 'turn', 'modifier': 'right'},
+            },
+            {
+              'distance': 0.0,
+              'name': '',
+              'maneuver': {'type': 'arrive'},
             },
           ],
         },
       ],
-    };
+    },
+  ],
+};
 
 void main() {
   test('la URL usa el servidor correcto según el modo', () {
@@ -76,6 +76,19 @@ void main() {
     expect(ruta.pasos[0].instruccion, 'Sal hacia Calle de Alcalá');
     expect(ruta.pasos[1].instruccion, 'Gira a la derecha hacia Gran Vía');
     expect(ruta.pasos[2].instruccion, 'Llegaste a tu destino');
+  });
+
+  test('acepta maniobras con location [lon, lat] de OSRM geojson', () {
+    final datos = respuestaEjemplo();
+    final paso = (datos['routes'][0]['legs'][0]['steps'] as List<dynamic>)[1]
+        as Map<String, dynamic>;
+    final maniobra = Map<String, dynamic>.from(paso['maneuver'] as Map);
+    maniobra['location'] = [-3.7010, 40.4180];
+    paso['maneuver'] = maniobra;
+
+    final ruta = rutaDesdeJson(datos);
+    expect(ruta.pasos[1].lon, closeTo(-3.7010, 0.0001));
+    expect(ruta.pasos[1].lat, closeTo(40.4180, 0.0001));
   });
 
   test('las instrucciones pueden salir en inglés', () {
@@ -131,10 +144,7 @@ void main() {
 
   test('las opciones se copian cambiando solo un valor', () {
     const opciones = OpcionesRuta();
-    final cambiadas = opciones.copyWith(
-      modo: ModoRuta.bici,
-      color: 0xFFFF3D71,
-    );
+    final cambiadas = opciones.copyWith(modo: ModoRuta.bici, color: 0xFFFF3D71);
 
     expect(opciones.modo, ModoRuta.coche);
     expect(cambiadas.modo, ModoRuta.bici);

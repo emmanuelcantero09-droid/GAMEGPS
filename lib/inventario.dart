@@ -26,10 +26,10 @@ class DisenoPropio {
   final String rutaImagen;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'nombre': nombre,
-        'rutaImagen': rutaImagen,
-      };
+    'id': id,
+    'nombre': nombre,
+    'rutaImagen': rutaImagen,
+  };
 }
 
 /// Guarda y lee la lista de diseños propios en las preferencias de la app.

@@ -339,6 +339,24 @@ def crear_base_datos():
             ("Sistema iniciado", "GeoQuest listo para explorar"),
         )
 
+    # Cuenta personal del autor: se conserva aunque se regenere la base de datos.
+    cursor.execute(
+        """INSERT OR IGNORE INTO interfaz_auth
+           (nombre, correo, contrasena, rol, estado, puntos, nivel)
+           VALUES (?, ?, ?, 'usuario', 'activo', 0, 'Errante')""",
+        ("Emmanuel", "emmanuel@gamegps.local", "gamegps123"),
+    )
+    cursor.execute(
+        """INSERT OR IGNORE INTO interfaz_estadisticas (usuario_id)
+           SELECT id FROM interfaz_auth
+           WHERE correo = 'emmanuel@gamegps.local'"""
+    )
+    cursor.execute(
+        """INSERT OR IGNORE INTO interfaz_admin_usuarios (usuario_id, puntos)
+           SELECT id, 0 FROM interfaz_auth
+           WHERE correo = 'emmanuel@gamegps.local'"""
+    )
+
     conexion.commit()
     conexion.close()
     print(f"Base de datos GeoQuest creada en {DB_PATH}")

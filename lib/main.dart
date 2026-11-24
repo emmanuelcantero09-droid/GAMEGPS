@@ -10,8 +10,12 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'auth.dart';
 import 'busqueda.dart';
 import 'capa_ruta.dart';
+import 'hud_navegacion.dart';
+import 'iconos_hollow.dart';
+import 'login_screen.dart';
 import 'inventario.dart';
 import 'mapa_local.dart';
 import 'mapas.dart';
@@ -20,8 +24,13 @@ import 'retos.dart';
 import 'rutas.dart';
 import 'skins.dart';
 import 'tienda.dart';
+import 'teselas_locales.dart';
 
-void main() => runApp(const GameGpsApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await iniciarTeselas();
+  runApp(const GameGpsApp());
+}
 
 class GameGpsApp extends StatelessWidget {
   const GameGpsApp({super.key});
@@ -43,13 +52,55 @@ class GameGpsApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: const Color(0xFF05070F),
       ),
-      home: const MapScreen(),
+      home: const _Inicio(),
     );
   }
 }
 
+/// Restaura la sesión guardada. Solo se pide cuenta la primera vez o cuando
+/// el viajero cierra sesión explícitamente.
+class _Inicio extends StatefulWidget {
+  const _Inicio();
+
+  @override
+  State<_Inicio> createState() => _InicioState();
+}
+
+class _InicioState extends State<_Inicio> {
+  Usuario? _usuario;
+  bool _cargando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _restaurar();
+  }
+
+  Future<void> _restaurar() async {
+    final usuario = await AuthServicio.leerSesion();
+    if (!mounted) return;
+    setState(() {
+      _usuario = usuario;
+      _cargando = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_cargando) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final usuario = _usuario;
+    if (usuario != null) return MapScreen(usuario: usuario);
+    return const LoginScreen();
+  }
+}
+
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  const MapScreen({super.key, required this.usuario});
+
+  /// Cuenta con la que se inició sesión contra la base de datos GeoQuest.
+  final Usuario usuario;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -75,11 +126,15 @@ class _MapScreenState extends State<MapScreen> {
   List<List<double>> _rastro = const [];
   bool _animacionLlegada = false;
   Puntos _puntos = const Puntos();
-  ProveedorMapaId _proveedor = ProveedorMapaId.cartoDark;
+  ProveedorMapaId _proveedor = ProveedorMapaId.local;
+  bool _modoNocheMapa = false;
   bool _siguiendo = true;
+  bool _rumboActivo = false;
   bool _centroFijado = false;
   double _centroLon = MapaLocal.centroPorDefectoLon;
   double _centroLat = MapaLocal.centroPorDefectoLat;
+  double? _lonUltimaGuardada;
+  double? _latUltimaGuardada;
   String _skin = SkinId.clasico.name;
   List<DisenoPropio> _disenosPropios = const [];
   List<String> _comprados = const [];
@@ -107,6 +162,9 @@ class _MapScreenState extends State<MapScreen> {
   Lugar? _destino;
   Ruta? _ruta;
   bool _calculandoRuta = false;
+  bool _navegando = false;
+  double _velocidadKmh = 0;
+  double _rumbo = 0;
   int _rutaGeneracion = 0;
   OpcionesRuta _opciones = const OpcionesRuta();
 
@@ -132,9 +190,33 @@ class _MapScreenState extends State<MapScreen> {
     final nombre = prefs.getString('skin_indicador');
     final disenos = InventarioDisenos.leer(prefs);
     final provNombre = prefs.getString('proveedor_mapa');
-    final proveedorGuardado = provNombre == null
+    // Cualquier fuente anterior se migra al mapa propio con teselas reales
+    // embebidas: funciona sin internet y muestra calles con nombres.
+    const migracionFuentes = <String, ProveedorMapaId>{
+      'cartoDark': ProveedorMapaId.local,
+      'osm': ProveedorMapaId.local,
+      'hot': ProveedorMapaId.local,
+      'topo': ProveedorMapaId.local,
+      'gps': ProveedorMapaId.local,
+      'custom': ProveedorMapaId.local,
+    };
+    final lonGuardado = prefs.getDouble('ultima_lon');
+    final latGuardado = prefs.getDouble('ultima_lat');
+    final ProveedorMapaId? proveedorGuardado = provNombre == null
         ? null
-        : ProveedorMapaId.values.where((p) => p.name == provNombre).firstOrNull;
+        : migracionFuentes[provNombre] ??
+              ProveedorMapaId.values
+                  .where((p) => p.name == provNombre)
+                  .firstOrNull;
+    // Migración única al mapa offline. Después se respeta la fuente elegida.
+    final migracionMapa = prefs.getInt('migracion_mapa') ?? 0;
+    final proveedorFinal = migracionMapa < 4
+        ? ProveedorMapaId.local
+        : proveedorGuardado ?? ProveedorMapaId.local;
+    if (migracionMapa < 4) {
+      await prefs.setInt('migracion_mapa', 4);
+      await prefs.setString('proveedor_mapa', ProveedorMapaId.local.name);
+    }
     final opciones = OpcionesRuta(
       modo: _valorGuardado(
         ModoRuta.values,
@@ -165,7 +247,16 @@ class _MapScreenState extends State<MapScreen> {
       _disenosPropios = disenos;
       _comprados = comprados;
       if (nombre != null) _skin = nombre;
-      if (proveedorGuardado != null) _proveedor = proveedorGuardado;
+      _proveedor = proveedorFinal;
+      _modoNocheMapa = prefs.getBool('mapa_noche') ?? false;
+      // Abrimos siempre sobre la última zona real del viajero, no sobre la
+      // ciudad de ejemplo del mapa offline.
+      if (lonGuardado != null && latGuardado != null) {
+        _centroLon = lonGuardado;
+        _centroLat = latGuardado;
+        _lonUltimaGuardada = lonGuardado;
+        _latUltimaGuardada = latGuardado;
+      }
       _opciones = opciones;
       _puntos = puntos;
     });
@@ -193,6 +284,16 @@ class _MapScreenState extends State<MapScreen> {
     await prefs.setString('ruta_unidades', _opciones.unidades.name);
     await prefs.setInt('ruta_color', _opciones.color);
     await prefs.setInt('ruta_grosor', _opciones.grosor);
+  }
+
+  /// Recuerda la zona real del viajero para abrir el mapa allí la próxima vez.
+  Future<void> _guardarUbicacion(geo.Position posicion) async {
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    _prefs = prefs;
+    _lonUltimaGuardada = posicion.longitude;
+    _latUltimaGuardada = posicion.latitude;
+    await prefs.setDouble('ultima_lon', posicion.longitude);
+    await prefs.setDouble('ultima_lat', posicion.latitude);
   }
 
   /// Pide el permiso y arranca el seguimiento continuo de la posición.
@@ -313,6 +414,18 @@ class _MapScreenState extends State<MapScreen> {
     _intentosGps = 0;
     final fijarCentro = !_centroFijado;
 
+    if (_lonUltimaGuardada == null ||
+        _latUltimaGuardada == null ||
+        geo.Geolocator.distanceBetween(
+              _latUltimaGuardada!,
+              _lonUltimaGuardada!,
+              posicion.latitude,
+              posicion.longitude,
+            ) >
+            50) {
+      unawaited(_guardarUbicacion(posicion));
+    }
+
     // Rastro de pasos reales: solo añadimos al movernos al menos 2 m.
     final rastro = List<List<double>>.from(_rastro);
     final ultimoPunto = rastro.isEmpty ? null : rastro.last;
@@ -332,6 +445,8 @@ class _MapScreenState extends State<MapScreen> {
     final anterior = _ultimaPosicionPuntos;
     _ultimaPosicionPuntos = posicion;
     var puntos = _puntos;
+    var velocidadKmh = _velocidadKmh;
+    var rumbo = _rumbo;
     if (anterior != null) {
       final metros = geo.Geolocator.distanceBetween(
         anterior.latitude,
@@ -340,6 +455,22 @@ class _MapScreenState extends State<MapScreen> {
         posicion.longitude,
       );
       if (metros > 0 && metros < 100) puntos = puntos.sumarDistancia(metros);
+      final segundos =
+          posicion.timestamp.difference(anterior.timestamp).inMilliseconds /
+          1000;
+      if (posicion.speed >= 0) {
+        velocidadKmh = posicion.speed * 3.6;
+      } else if (segundos > 0 && metros < 100) {
+        velocidadKmh = (metros / segundos) * 3.6;
+      }
+      if (metros > 1) {
+        rumbo = rumboGeo(
+          anterior.latitude,
+          anterior.longitude,
+          posicion.latitude,
+          posicion.longitude,
+        );
+      }
     }
 
     // Puntos por llegar al destino, una sola vez por lugar.
@@ -377,6 +508,8 @@ class _MapScreenState extends State<MapScreen> {
       _posicion = posicion;
       _puntos = puntos;
       _rastro = rastro;
+      _velocidadKmh = velocidadKmh;
+      _rumbo = rumbo;
       if (llegadaNueva) _animacionLlegada = true;
       if (fijarCentro) {
         _centroLon = posicion.longitude;
@@ -407,11 +540,36 @@ class _MapScreenState extends State<MapScreen> {
   Future<void> _moverCamara(double lon, double lat, {double? zoom}) async {
     final controller = _mapController;
     if (controller == null) return;
-    await controller.animateCamera(
-      center: Geographic(lon: lon, lat: lat),
-      zoom: zoom ?? controller.camera?.zoom ?? 16,
-      nativeDuration: const Duration(milliseconds: 700),
-    );
+    try {
+      await controller.animateCamera(
+        center: Geographic(lon: lon, lat: lat),
+        zoom: zoom ?? controller.camera?.zoom ?? 16,
+        nativeDuration: const Duration(milliseconds: 700),
+      );
+    } catch (_) {
+      // El GPS, el rumbo o un cambio de fuente pueden cancelar la animación
+      // en curso. La cámara ya apunta a una posición válida: esto no es un
+      // fallo de la ruta y no debe interrumpir la navegación.
+    }
+  }
+
+  /// Gira el mapa en la dirección del viaje, como hace un GPS. El seguimiento
+  /// de posición lo sigue haciendo [_moverCamara] para evitar saltos.
+  Future<void> _sincronizarRumbo() async {
+    final controller = _mapController;
+    if (controller == null) return;
+    try {
+      // En Android, BearingTrackMode.gps con trackLocation:false activa
+      // CameraMode.NONE_GPS en el componente nativo. Si el dispositivo no
+      // publica rumbo, el mapa deja de renderizar y la pantalla queda gris.
+      // Mantenemos el modo NONE para que la navegación siempre se vea.
+      await controller.trackLocation(
+        trackLocation: false,
+        trackBearing: BearingTrackMode.none,
+      );
+    } catch (_) {
+      // El seguimiento de ubicación sigue funcionando sin rumbo giratorio.
+    }
   }
 
   /// Muestra las fuentes de mapa gratuitas y aplica la selección.
@@ -419,6 +577,7 @@ class _MapScreenState extends State<MapScreen> {
     final elegido = await showModalBottomSheet<ProveedorMapaId>(
       context: context,
       backgroundColor: const Color(0xFF0B1220),
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -439,30 +598,75 @@ class _MapScreenState extends State<MapScreen> {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Ninguna usa Google Maps ni requiere API key',
+                'Calles reales, gratis y sin registro',
                 style: TextStyle(color: Color(0xFF8FA3BF), fontSize: 12),
               ),
               const SizedBox(height: 12),
-              ...proveedoresMapa.map(
-                (p) => ListTile(
-                  leading: Icon(
-                    p.id == _proveedor
-                        ? Icons.check_circle
-                        : Icons.circle_outlined,
-                    color: const Color(0xFF00E5FF),
-                  ),
-                  title: Text(
-                    p.nombre,
-                    style: const TextStyle(color: Colors.white, fontSize: 14),
-                  ),
-                  subtitle: Text(
-                    p.detalle,
-                    style: const TextStyle(
-                      color: Color(0xFF8FA3BF),
-                      fontSize: 11,
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    ...proveedoresMapa.map(
+                      (p) => ListTile(
+                        leading: Icon(
+                          p.id == _proveedor
+                              ? Icons.check_circle
+                              : Icons.circle_outlined,
+                          color: const Color(0xFF00E5FF),
+                        ),
+                        title: Text(
+                          p.nombre,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          p.detalle,
+                          style: const TextStyle(
+                            color: Color(0xFF8FA3BF),
+                            fontSize: 11,
+                          ),
+                        ),
+                        onTap: () => Navigator.pop(context, p.id),
+                      ),
                     ),
-                  ),
-                  onTap: () => Navigator.pop(context, p.id),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Símbolos del mapa',
+                        style: TextStyle(
+                          color: Color(0xFF00E5FF),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      children: [
+                        Wrap(
+                          spacing: 14,
+                          runSpacing: 12,
+                          children: [
+                            for (final icono in iconosHollow)
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  iconoHollowWidget(icono, size: 34),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    icono.etiqueta,
+                                    style: const TextStyle(
+                                      color: Color(0xFF8FA3BF),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1096,7 +1300,8 @@ class _MapScreenState extends State<MapScreen> {
       _animacionLlegada = false;
     });
     unawaited(_registrarBusquedaYRetos());
-    _moverCamara(lugar.lon, lugar.lat);
+    // No movemos la cámara aquí: _calcularRuta ya la centra en el viajero con
+    // el zoom de navegación. Dos animaciones simultáneas se cancelan entre sí.
     _calcularRuta(lugar);
   }
 
@@ -1127,9 +1332,24 @@ class _MapScreenState extends State<MapScreen> {
       _destino = null;
       _ruta = null;
       _calculandoRuta = false;
+      _navegando = false;
       _buscando = false;
       _rastro = const [];
+      _rumboActivo = false;
     });
+    unawaited(_sincronizarRumbo());
+  }
+
+  /// Sale del modo guiado y limpia la ruta activa.
+  void _detenerNavegacion() {
+    _rutaGeneracion++;
+    setState(() {
+      _navegando = false;
+      _ruta = null;
+      _destino = null;
+      _rumboActivo = false;
+    });
+    unawaited(_sincronizarRumbo());
   }
 
   /// Distancia en línea recta desde tu posición hasta el destino.
@@ -1158,8 +1378,8 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _calculandoRuta = true;
       _ruta = null;
-      // Si la cámara sigue al usuario, se alejaría de la ruta al caminar.
-      _siguiendo = false;
+      // Durante la navegación la cámara sigue al viajero como en un GPS.
+      _siguiendo = true;
     });
     try {
       final ruta = await ServicioRutas().obtener(
@@ -1174,9 +1394,9 @@ class _MapScreenState extends State<MapScreen> {
       setState(() {
         _ruta = ruta;
         _calculandoRuta = false;
+        _navegando = true;
+        _rumboActivo = true;
       });
-      final centro = centroRuta(ruta);
-      await _moverCamara(centro.lon, centro.lat, zoom: zoomParaRuta(ruta));
     } on RutaException catch (error) {
       if (!mounted || generacion != _rutaGeneracion) return;
       setState(() => _calculandoRuta = false);
@@ -1185,6 +1405,12 @@ class _MapScreenState extends State<MapScreen> {
       if (!mounted || generacion != _rutaGeneracion) return;
       setState(() => _calculandoRuta = false);
       _mostrarMensaje('No se pudo calcular la ruta. Inténtalo de nuevo.');
+    }
+    // Cámara y rumbo son solo presentación: van fuera del try para que un
+    // fallo aquí nunca convierta una ruta válida en un error para el usuario.
+    if (mounted && generacion == _rutaGeneracion && _ruta != null) {
+      await _moverCamara(posicion.longitude, posicion.latitude, zoom: 17.2);
+      await _sincronizarRumbo();
     }
   }
 
@@ -1521,6 +1747,7 @@ class _MapScreenState extends State<MapScreen> {
                     _destino = null;
                     _ruta = null;
                     _calculandoRuta = false;
+                    _navegando = false;
                   });
                 },
                 tooltip: 'Quitar destino',
@@ -1634,23 +1861,188 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Ficha compacta de la cuenta; se abre al tocar el avatar del mapa.
+  void _mostrarCuenta() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF10182B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: const Color(0xFF7B2BFF),
+                    child: Text(
+                      widget.usuario.inicial,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.usuario.nombre,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.usuario.correo,
+                          style: const TextStyle(
+                            color: Color(0xFF8FA3BF),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(color: Color(0x3300E5FF)),
+              const SizedBox(height: 8),
+              _filaCuenta(Icons.military_tech, 'Nivel', widget.usuario.nivel),
+              _filaCuenta(
+                Icons.stars,
+                'Puntos guardados',
+                '${widget.usuario.puntos}',
+              ),
+              _filaCuenta(
+                Icons.shield_outlined,
+                'Perfil',
+                widget.usuario.esAdmin ? 'Administrador' : 'Viajero',
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _cerrarSesion();
+                  },
+                  icon: const Icon(Icons.logout),
+                  label: const Text('Cerrar sesión'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF3D71),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _filaCuenta(IconData icono, String etiqueta, String valor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(icono, size: 18, color: const Color(0xFF00E5FF)),
+          const SizedBox(width: 10),
+          Text('$etiqueta: ', style: const TextStyle(color: Color(0xFF8FA3BF))),
+          Expanded(
+            child: Text(
+              valor,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _cerrarSesion() {
+    unawaited(AuthServicio.cerrarSesion());
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final posicionActual = _posicion;
+    final rutaActiva = _ruta;
+    final navegando =
+        _navegando && rutaActiva != null && posicionActual != null;
+
+    var recorrido = 0.0;
+    var restante = rutaActiva?.distanciaMetros ?? 0;
+    var segundosRestantesHud = 0.0;
+    List<({PasoRuta paso, double metros})> maniobras = const [];
+    if (navegando) {
+      final progreso = progresoRuta(
+        rutaActiva,
+        posicionActual.latitude,
+        posicionActual.longitude,
+      );
+      recorrido = progreso.recorrido;
+      restante = progreso.restante;
+      segundosRestantesHud = segundosRestantes(rutaActiva, restante);
+      maniobras = maniobrasPendientes(rutaActiva, recorrido);
+    }
+
+    // Flechas sobre la línea de la ruta: se ven como indicaciones en el mapa.
+    List<({double lon, double lat, double angulo})> flechasRuta = const [];
+    final puntosRuta = rutaActiva?.puntos ?? const <List<double>>[];
+    if (puntosRuta.length > 8) {
+      final paso = math.max(2, puntosRuta.length ~/ 12);
+      for (var i = paso; i < puntosRuta.length - 1; i += paso) {
+        final anteriorPunto = puntosRuta[i - 1];
+        final punto = puntosRuta[i];
+        final rumboFlecha = rumboGeo(
+          anteriorPunto[1],
+          anteriorPunto[0],
+          punto[1],
+          punto[0],
+        );
+        flechasRuta.add((
+          lon: punto[0],
+          lat: punto[1],
+          angulo: (rumboFlecha - 90) * math.pi / 180,
+        ));
+      }
+    }
+
     return Scaffold(
       body: MapLibreMap(
-        // Se reconstruye al cambiar de fuente para aplicar el nuevo estilo.
-        key: ValueKey(_proveedor),
+        // Se reconstruye al cambiar de fuente o de tema para aplicar el estilo.
+        key: ValueKey('$_proveedor-$_modoNocheMapa'),
         options: MapOptions(
-          initStyle:
-              proveedoresMapa.firstWhere((p) => p.id == _proveedor).style ??
-              MapaLocal.style,
+          initStyle: _proveedor == ProveedorMapaId.local
+              ? (_modoNocheMapa
+                    ? (estiloTeselasLocalesNoche ??
+                          estiloTeselasLocales ??
+                          estiloGps)
+                    : (estiloTeselasLocales ?? estiloGps))
+              : proveedoresMapa.firstWhere((p) => p.id == _proveedor).style!,
           initCenter: Geographic(lon: _centroLon, lat: _centroLat),
-          initZoom: 16,
+          initZoom: 17,
           minZoom: 3,
         ),
         layers: [
-          if (_proveedor == ProveedorMapaId.local)
-            ...MapaLocal.layers(lon: _centroLon, lat: _centroLat),
           if (_rastro.length > 1) ...capasRastro(_rastro),
           if (_ruta != null)
             ...capasRuta(
@@ -1661,6 +2053,11 @@ class _MapScreenState extends State<MapScreen> {
         ],
         onMapCreated: (controller) {
           _mapController = controller;
+          unawaited(_sincronizarRumbo());
+          // Los símbolos tipo Hollow Knight se pintan en Dart y se entregan
+          // al estilo; sustituyen a los iconos genéricos de los puntos de interés.
+          final estilo = controller.style;
+          if (estilo != null) unawaited(registrarIconosHollow(estilo));
           if (_posicionStream != null) {
             // El mapa se recreó al cambiar de fuente: volver a centrar.
             if (_posicion != null) {
@@ -1674,6 +2071,23 @@ class _MapScreenState extends State<MapScreen> {
           // Indicador anclado a la posición geográfica (cambia con el skin).
           WidgetLayer(
             markers: [
+              ...flechasRuta.map(
+                (flecha) => Marker(
+                  point: Geographic(lon: flecha.lon, lat: flecha.lat),
+                  size: const Size(20, 20),
+                  child: Transform.rotate(
+                    angle: flecha.angulo,
+                    child: const Icon(
+                      Icons.arrow_forward,
+                      color: Color(0xFF00E5FF),
+                      size: 20,
+                      shadows: [
+                        Shadow(color: Color(0xFF05070F), blurRadius: 5),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
               if (_destino != null)
                 Marker(
                   point: Geographic(lon: _destino!.lon, lat: _destino!.lat),
@@ -1690,7 +2104,10 @@ class _MapScreenState extends State<MapScreen> {
                   lon: _posicion?.longitude ?? MapaLocal.centroPorDefectoLon,
                   lat: _posicion?.latitude ?? MapaLocal.centroPorDefectoLat,
                 ),
-                size: const Size(56, 56),
+                // Más compacto y desplazado hacia arriba: deja libre el centro
+                // del mapa y no tapa los controles ni el recorrido.
+                size: const Size(42, 42),
+                alignment: const Alignment(0, -0.45),
                 child: _skinsDisponibles
                     .firstWhere((s) => s.id == _skin, orElse: () => skins.first)
                     .build(seleccionado: true),
@@ -1699,9 +2116,21 @@ class _MapScreenState extends State<MapScreen> {
           ),
           // Buscador arriba; el botón de seguir queda libre a la derecha.
           Positioned(top: 16, left: 16, right: 72, child: _panelBusqueda()),
+          if (navegando)
+            Positioned(
+              top: 62,
+              left: 16,
+              right: 72,
+              child: HudManiobra(
+                maniobras: maniobras,
+                unidades: _opciones.unidades,
+                restante: restante,
+                duracionRestante: segundosRestantesHud,
+              ),
+            ),
           if (_mensaje != null)
             Positioned(
-              top: 68,
+              top: navegando ? 252 : 68,
               left: 16,
               right: 72,
               child: _Aviso(
@@ -1710,31 +2139,74 @@ class _MapScreenState extends State<MapScreen> {
                 accion: _accionAviso,
               ),
             ),
-          // Versión de la app, bajo el botón de seguir y sin capturar toques.
-          const Positioned(
-            right: 16,
-            top: 72,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: Color(0x9910182B),
-                  borderRadius: BorderRadius.all(Radius.circular(12)),
+          // Versión de la app, bajo el avatar y sin capturar toques.
+          if (!navegando)
+            const Positioned(
+              right: 16,
+              top: 124,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Color(0x9910182B),
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    child: Text(
+                      'GAME GPS v${GameGpsApp.version}',
+                      style: TextStyle(
+                        color: Color(0xFF8FA3BF),
+                        fontSize: 10,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
                 ),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              ),
+            ),
+          // Cuenta activa: avatar pequeño que no tapa el mapa ni los controles.
+          Positioned(
+            top: 72,
+            right: 16,
+            child: Tooltip(
+              message: 'Mi cuenta',
+              child: GestureDetector(
+                onTap: _mostrarCuenta,
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF7B2BFF),
+                    border: Border.all(
+                      color: const Color(0xFF00E5FF),
+                      width: 1.5,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x9905070F),
+                        blurRadius: 8,
+                        offset: Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
                   child: Text(
-                    'GAME GPS v${GameGpsApp.version}',
-                    style: TextStyle(
-                      color: Color(0xFF8FA3BF),
-                      fontSize: 10,
-                      letterSpacing: 0.8,
+                    widget.usuario.inicial,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          if (_mensaje == null && _resultados.isEmpty && !_buscando)
+          if (!navegando &&
+              _mensaje == null &&
+              _resultados.isEmpty &&
+              !_buscando)
             Positioned(
               top: 68,
               left: 16,
@@ -1761,7 +2233,10 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ),
             ),
-          if (_mensaje == null && _resultados.isEmpty && !_buscando)
+          if (!navegando &&
+              _mensaje == null &&
+              _resultados.isEmpty &&
+              !_buscando)
             Positioned(
               top: 102,
               left: 16,
@@ -1805,6 +2280,73 @@ class _MapScreenState extends State<MapScreen> {
                 ),
               ),
             ),
+          // Brújula y velocidad visibles incluso antes de trazar una ruta.
+          if (!navegando)
+            Positioned(
+              top: 140,
+              left: 16,
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xCC10182B),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: const Color(0x6600E5FF)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_proveedor == ProveedorMapaId.gps) ...[
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF2FE39A),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Color(0x992FE39A),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Text(
+                          'GPS',
+                          style: TextStyle(
+                            color: Color(0xFF2FE39A),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      Transform.rotate(
+                        angle: _rumbo * math.pi / 180,
+                        child: const Icon(
+                          Icons.navigation,
+                          size: 13,
+                          color: Color(0xFF00E5FF),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${cardinal(_rumbo)} · ${_velocidadKmh.round()} km/h',
+                        style: const TextStyle(
+                          color: Color(0xFFCFCCBE),
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           // Botón para activar/desactivar que la cámara siga al usuario.
           Positioned(
             top: 16,
@@ -1820,6 +2362,7 @@ class _MapScreenState extends State<MapScreen> {
                 if (_siguiendo && _posicion != null) {
                   _moverCamara(_posicion!.longitude, _posicion!.latitude);
                 }
+                unawaited(_sincronizarRumbo());
               },
               tooltip: _siguiendo
                   ? 'Dejar de seguir mi posición'
@@ -1827,8 +2370,78 @@ class _MapScreenState extends State<MapScreen> {
               child: Icon(_siguiendo ? Icons.gps_fixed : Icons.gps_not_fixed),
             ),
           ),
-          if (_destino != null)
+          // Gira el mapa con el rumbo: comportamiento real de navegación GPS.
+          if (_proveedor == ProveedorMapaId.gps)
+            Positioned(
+              top: 78,
+              right: 16,
+              child: FloatingActionButton.small(
+                heroTag: 'rumbo-gps',
+                backgroundColor: const Color(0xCC10182B),
+                foregroundColor: _rumboActivo
+                    ? const Color(0xFF2FE39A)
+                    : const Color(0xFF8FA3BF),
+                tooltip: _rumboActivo
+                    ? 'Mapa orientado al norte'
+                    : 'Girar mapa con mi rumbo',
+                onPressed: () {
+                  setState(() => _rumboActivo = !_rumboActivo);
+                  unawaited(_sincronizarRumbo());
+                },
+                child: const Icon(Icons.explore),
+              ),
+            ),
+          // Tema claro/noche del mapa propio (las teselas siguen siendo reales).
+          if (_proveedor == ProveedorMapaId.local)
+            Positioned(
+              top: 78,
+              right: 16,
+              child: FloatingActionButton.small(
+                heroTag: 'tema-mapa',
+                backgroundColor: const Color(0xCC10182B),
+                foregroundColor: const Color(0xFF00E5FF),
+                tooltip: _modoNocheMapa
+                    ? 'Mapa claro'
+                    : 'Mapa nocturno GAME GPS',
+                onPressed: () async {
+                  final nocturno = !_modoNocheMapa;
+                  setState(() => _modoNocheMapa = nocturno);
+                  final prefs = _prefs ?? await SharedPreferences.getInstance();
+                  _prefs = prefs;
+                  await prefs.setBool('mapa_noche', nocturno);
+                },
+                child: Icon(
+                  _modoNocheMapa ? Icons.wb_sunny : Icons.nightlight_round,
+                ),
+              ),
+            ),
+          if (_destino != null && !navegando)
             Positioned(left: 16, right: 16, bottom: 88, child: _panelDestino()),
+          if (navegando && rutaActiva.distanciaMetros > 0)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 88,
+              child: HudResumen(
+                velocidadKmh: _velocidadKmh,
+                rumbo: _rumbo,
+                progreso: recorrido / rutaActiva.distanciaMetros,
+                restanteMetros: restante,
+                segundosRestantes: segundosRestantesHud,
+                unidades: _opciones.unidades,
+                llegada: DateTime.now().add(
+                  Duration(seconds: segundosRestantesHud.round()),
+                ),
+                onDetener: _detenerNavegacion,
+                onReencuadrar: () async {
+                  await _moverCamara(
+                    posicionActual.longitude,
+                    posicionActual.latitude,
+                    zoom: 17.2,
+                  );
+                },
+              ),
+            ),
           Positioned(
             left: 16,
             bottom: 24,

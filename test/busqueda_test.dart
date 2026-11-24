@@ -49,7 +49,9 @@ void main() {
   test('usa la calle cuando el resultado no tiene nombre', () {
     final lugar = lugarDesdeJson({
       'properties': {'street': 'Calle Gran Vía', 'city': 'Madrid'},
-      'geometry': {'coordinates': [-3.7015, 40.4200]},
+      'geometry': {
+        'coordinates': [-3.7015, 40.4200],
+      },
     });
 
     expect(lugar.nombre, 'Calle Gran Vía');

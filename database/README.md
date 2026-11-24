@@ -1,5 +1,11 @@
 # Base de datos GeoQuest
 
+La app Flutter/Android usa esta base de datos a través de `api.py`: al abrir pide
+cuenta (login/registro) y muestra el avatar del usuario en el mapa. Configura la
+dirección del API desde la propia pantalla de acceso (`http://127.0.0.1:8000` por
+defecto; con el celular por USB usa `adb reverse tcp:8000 tcp:8000`). Ventana del
+API: `python3 database/api.py`.
+
 Un solo archivo SQLite (`geoquest.db`) con el esquema original del proyecto más
 **una tabla por interfaz**:
 

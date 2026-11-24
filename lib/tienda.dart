@@ -26,12 +26,12 @@ class SkinTienda {
 
   /// Skin listo para usar en el inventario del marcador.
   Skin get skin => Skin(
-        id: id,
-        nombre: nombre,
-        descripcion: descripcion,
-        asset: asset,
-        color: color,
-      );
+    id: id,
+    nombre: nombre,
+    descripcion: descripcion,
+    asset: asset,
+    color: color,
+  );
 }
 
 /// Iconos de game-icons.net, licencia CC BY 3.0. Créditos en README.md.

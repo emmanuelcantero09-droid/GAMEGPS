@@ -42,24 +42,13 @@ void main() {
   });
 
   test('el mismo día no vuelve a dar puntos de racha', () {
-    final puntos = Puntos(
-      saldo: 10,
-      racha: 3,
-      ultimoDia: '2026-11-21',
-    );
+    final puntos = Puntos(saldo: 10, racha: 3, ultimoDia: '2026-11-21');
 
-    expect(
-      puntos.registrarDia(DateTime(2026, 11, 21, 15)).saldo,
-      10,
-    );
+    expect(puntos.registrarDia(DateTime(2026, 11, 21, 15)).saldo, 10);
   });
 
   test('un dia seguido suma racha y puntos; un salto la reinicia', () {
-    final puntos = Puntos(
-      saldo: 10,
-      racha: 3,
-      ultimoDia: '2026-11-20',
-    );
+    final puntos = Puntos(saldo: 10, racha: 3, ultimoDia: '2026-11-20');
 
     final seguido = puntos.registrarDia(DateTime(2026, 11, 21));
     expect(seguido.saldo, 15);
@@ -71,11 +60,7 @@ void main() {
   });
 
   test('el séptimo dia consecutivo da un bonus extra una sola vez', () {
-    final puntos = Puntos(
-      saldo: 0,
-      racha: 6,
-      ultimoDia: '2026-11-20',
-    );
+    final puntos = Puntos(saldo: 0, racha: 6, ultimoDia: '2026-11-20');
 
     final diaSiete = puntos.registrarDia(DateTime(2026, 11, 21));
     expect(diaSiete.saldo, 10);
